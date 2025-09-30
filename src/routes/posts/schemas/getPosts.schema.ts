@@ -1,7 +1,6 @@
 import { Type, Static } from "@sinclair/typebox";
 import { IError, TError, IDateTimeRange, IPagination } from "../../../helper/common";
 
-
 export const IFilter = Type.Object({
   postedAt: Type.Optional(IDateTimeRange),
   orderBy: Type.Optional(
@@ -33,20 +32,26 @@ const IResponse = Type.Array(
     bookmark_count: Type.Integer(),
     impression_count: Type.Integer(),
     post_type: Type.String(),
-    user: Type.Optional(Type.Object({
-      id: Type.String(),
-      profile_image_url: Type.String(),
-      name: Type.String(),
-      username: Type.String(),
-      verified_type: Type.Optional(Type.String()),
-      followers_count: Type.Integer(),
-    })),
-    attachments: Type.Optional(Type.Array(Type.Object({
-      id: Type.String(),
-      source: Type.String(),
-      url: Type.String(),
-    }))),
-    posted_at: Type.String({ format: 'date-time' }),
+    user: Type.Optional(
+      Type.Object({
+        id: Type.String(),
+        profile_image_url: Type.String(),
+        name: Type.String(),
+        username: Type.String(),
+        verified_type: Type.Optional(Type.String()),
+        followers_count: Type.Integer(),
+      }),
+    ),
+    attachments: Type.Optional(
+      Type.Array(
+        Type.Object({
+          id: Type.String(),
+          source: Type.String(),
+          url: Type.String(),
+        }),
+      ),
+    ),
+    posted_at: Type.String({ format: "date-time" }),
   }),
 );
 

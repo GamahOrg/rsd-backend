@@ -1,7 +1,7 @@
-import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import Redis from 'ioredis';
+import { FastifyInstance, FastifyPluginOptions } from "fastify";
+import Redis from "ioredis";
 
-declare module 'fastify' {
+declare module "fastify" {
   interface FastifyInstance {
     redis: Redis;
   }
@@ -9,10 +9,10 @@ declare module 'fastify' {
 
 export async function redisPlugin(fastify: FastifyInstance, options: FastifyPluginOptions) {
   const redis = new Redis({
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379'),
+    host: process.env.REDIS_HOST || "localhost",
+    port: parseInt(process.env.REDIS_PORT || "6379"),
     password: process.env.REDIS_PASSWORD,
-    db: parseInt(process.env.REDIS_DB || '0'),
+    db: parseInt(process.env.REDIS_DB || "0"),
     retryDelayOnFailover: 100,
     maxRetriesPerRequest: 3,
     lazyConnect: true,
@@ -22,28 +22,28 @@ export async function redisPlugin(fastify: FastifyInstance, options: FastifyPlug
   });
 
   // Handle Redis connection events
-  redis.on('connect', () => {
-    fastify.log.info('Redis connected successfully');
+  redis.on("connect", () => {
+    fastify.log.info("Redis connected successfully");
   });
 
-  redis.on('error', (error) => {
-    fastify.log.error('Redis connection error:', error);
+  redis.on("error", (error) => {
+    fastify.log.error("Redis connection error:", error);
   });
 
-  redis.on('close', () => {
-    fastify.log.warn('Redis connection closed');
+  redis.on("close", () => {
+    fastify.log.warn("Redis connection closed");
   });
 
-  redis.on('reconnecting', () => {
-    fastify.log.info('Redis reconnecting...');
+  redis.on("reconnecting", () => {
+    fastify.log.info("Redis reconnecting...");
   });
 
   // Decorate fastify instance with redis
-  fastify.decorate('redis', redis);
+  fastify.decorate("redis", redis);
 
   // Graceful shutdown
-  fastify.addHook('onClose', async (instance) => {
+  fastify.addHook("onClose", async (instance) => {
     await redis.quit();
-    fastify.log.info('Redis connection closed gracefully');
+    fastify.log.info("Redis connection closed gracefully");
   });
 }
