@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import Fastify from "fastify";
+import qs from "qs";
 import { config } from "dotenv";
 import { join } from "path";
 import AutoLoad from "@fastify/autoload";
@@ -9,9 +10,10 @@ import { initializeDatabase, AppDataSource } from "./config/database";
 config();
 
 const fastify = Fastify({
-  logger: {
-    level: process.env.NODE_ENV === "development" ? "info" : "warn",
-  },
+  // logger: {
+  //   level: process.env.NODE_ENV === "development" ? "info" : "warn",
+  // },
+  querystringParser: (str) => qs.parse(str),
 });
 
 // Health check route with database and Redis status
