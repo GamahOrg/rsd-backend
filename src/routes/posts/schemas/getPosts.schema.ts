@@ -66,6 +66,7 @@ type TQuerystring = Static<typeof IQuerystring>;
 const IResponse = Type.Array(
   Type.Object({
     id: Type.String(),
+    conversation_id: Type.String(),
     post_id: Type.String(),
     text: Type.String(),
     sentiment: Type.String(),
