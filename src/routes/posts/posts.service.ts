@@ -5,6 +5,7 @@ import {
 } from "./schemas/getPosts.schema";
 import { AppDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
+import { In } from "typeorm";
 
 
 
@@ -15,6 +16,9 @@ export default fp(async (fastify) => {
       const postRepo = AppDataSource.getRepository(Post);
 
       const [data, totalRecords] = await postRepo.findAndCount({
+        where:{
+          post_type: In(["post", "quote", "replied_to"])
+        },
         relations: { user: true, attachments: true},
         skip,
         take: take,
