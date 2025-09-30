@@ -1,0 +1,20 @@
+import { Static, Type } from "@sinclair/typebox";
+
+
+export const IError = Type.Object({
+  statusCode: Type.Number(),
+  error: Type.String(),
+  message: Type.String(),
+});
+export type TError = Static<typeof IError>;
+
+export const IPagination = Type.Object({
+    page: Type.Number({ default: 1 }),
+    pageSize: Type.Number({ default: 10 }),
+  });
+  export type IPagination = Static<typeof IPagination>;
+  
+  export const IDateTimeRange = Type.Object({
+    from: Type.Optional(Type.String({ format: "date-time" })),
+    to: Type.Optional(Type.String({ format: "date-time" })),
+  });
