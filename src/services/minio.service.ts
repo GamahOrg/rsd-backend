@@ -7,20 +7,11 @@ export default fp(async (fastify) => {
   const getFilePresignedUrl = async (path: string) => {
     const expirationInSeconds = parseInt(process.env.MINIO_URL_EXPIRATION || "600", 10);
     try {
-      let presignedUrl = await new Promise((resolve: any, reject: any) => {
-        minio.presignedGetObject(
-          process.env.MINIO_BUCKET_NAME || "x-data",
-          path.replace(process.env.MINIO_BUCKET_NAME || "x-data", ""),
-          expirationInSeconds,
-          (err: any, presignedUrl: any) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(presignedUrl);
-            }
-          },
-        );
-      });
+      let presignedUrl = await minio.presignedGetObject(
+        process.env.MINIO_BUCKET_NAME || "x-data",
+        path.replace(process.env.MINIO_BUCKET_NAME || "x-data", ""),
+        expirationInSeconds
+      );
 
       return presignedUrl;
     } catch (error) {
@@ -37,7 +28,7 @@ export default fp(async (fastify) => {
 declare module "fastify" {
   interface FastifyInstance {
     minioService: {
-      getFilePresignedUrl: (path: string) => Promise<any>;
+      getFilePresignedUrl: (path: string) => Promise<string>;
     };
   }
 }

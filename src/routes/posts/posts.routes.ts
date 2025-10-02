@@ -26,26 +26,6 @@ const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     },
   });
 
-    // api to get specific post
-    fastify.route<postSchemaType>({
-      method: "GET",
-      url: "/:post_id",
-      schema: getPostSchema,
-      handler: async (request) => {
-        const { post_id } = request.params;
-        const { data } = await fastify.postService.getPost(post_id);
-        console.log(data);
-        
-        if (data?.attachments) {
-          for (const attachment of data.attachments) {
-            if (attachment.source === "minio") {
-              attachment.url = await fastify.minioService.getFilePresignedUrl(attachment.url);
-            }
-          }
-        }
-        return data;
-      },
-    });
 
   // api to get all the replies to a post
   fastify.route<repliesSchemaType>({
@@ -61,16 +41,24 @@ const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     },
   });
 
-  // api to get all the replies to a post
-  fastify.route<repliesSchemaType>({
+
+  // api to get specific post
+  fastify.route<postSchemaType>({
     method: "GET",
-    url: "/:post_id/replies",
-    schema: getRepliesSchema,
-    handler: async (request, response) => {
+    url: "/:post_id",
+    schema: getPostSchema,
+    handler: async (request) => {
       const { post_id } = request.params;
-      const { skip, take } = request.pagination!;
-      const { data, totalRecords } = await fastify.postService.getAllReplies(post_id, skip, take);
-      setPaginationHeaders(response, totalRecords, take);
+      const { data } = await fastify.postService.getPost(post_id);
+      console.log(data);
+      
+      if (data?.attachments) {
+        for (const attachment of data.attachments) {
+          if (attachment.source === "minio") {
+            attachment.url = await fastify.minioService.getFilePresignedUrl(attachment.url);
+          }
+        }
+      }
       return data;
     },
   });

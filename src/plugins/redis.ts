@@ -13,7 +13,6 @@ export async function redisPlugin(fastify: FastifyInstance, options: FastifyPlug
     port: parseInt(process.env.REDIS_PORT || "6379"),
     password: process.env.REDIS_PASSWORD,
     db: parseInt(process.env.REDIS_DB || "0"),
-    retryDelayOnFailover: 100,
     maxRetriesPerRequest: 3,
     lazyConnect: true,
     keepAlive: 30000,
@@ -26,9 +25,7 @@ export async function redisPlugin(fastify: FastifyInstance, options: FastifyPlug
     fastify.log.info("Redis connected successfully");
   });
 
-  redis.on("error", (error) => {
-    fastify.log.error("Redis connection error:", error);
-  });
+  redis.on("error", (error) => fastify.log.error(error, "Redis connection error"));
 
   redis.on("close", () => {
     fastify.log.warn("Redis connection closed");
