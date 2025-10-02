@@ -8,6 +8,7 @@ import { AppDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
 import { In } from "typeorm";
 import { Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
+import { TResponse as GetPostResponse } from "./schemas/getPost.schema";
 
 export default fp(async (fastify) => {
   const getAllPosts = async (skip: number, take: number, filter: GetAllPostsFilter | undefined) => {
@@ -60,10 +61,17 @@ export default fp(async (fastify) => {
     return { data: data as unknown as GetAllRepliesResponse, totalRecords };
   };
 
+  const getPost = async (post_id: string) => {
+    const postRepo = AppDataSource.getRepository(Post);
+    const data = await postRepo.findOne({ where: { post_id }, relations: { user: true, attachments: true } });
+    return { data: data as unknown as GetPostResponse };
+  };
+
   // Decorate the fastify instance with the postService
   fastify.decorate("postService", {
     getAllPosts,
     getAllReplies,
+    getPost,
   });
 });
 
@@ -75,6 +83,9 @@ declare module "fastify" {
         take: number,
         filter: GetAllPostsFilter | undefined,
       ) => Promise<{ data: GetAllPostsResponse; totalRecords: number }>;
+      getPost: (
+        post_id: string,
+      ) => Promise<{ data: GetPostResponse }>;
       getAllReplies: (
         post_id: string,
         skip: number,
