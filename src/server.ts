@@ -84,6 +84,7 @@ const start = async () => {
     await fastify.listen({ port, host });
     console.log(`🌐 Server is running on http://${host}:${port}`);
     console.log(`📋 Health check available at http://${host}:${port}/health`);
+    console.log(`📋 API documentation available at http://${host}:${port}/docs`);
   } catch (err) {
     console.error("❌ Failed to start server:", err);
     fastify.log.error(err);

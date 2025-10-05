@@ -7,38 +7,39 @@ const IParams = Type.Object({
 type TParams = Static<typeof IParams>;
 
 const IResponse = Type.Object({
-    id: Type.String(),
-    conversation_id: Type.String(),
-    post_id: Type.String(),
-    text: Type.String(),
-    sentiment: Type.String(),
-    like_count: Type.Integer(),
-    retweet_count: Type.Integer(),
-    reply_count: Type.Integer(),
-    bookmark_count: Type.Integer(),
-    impression_count: Type.Integer(),
-    post_type: Type.String(),
-    user: Type.Optional(
+  id: Type.String(),
+  conversation_id: Type.String(),
+  post_id: Type.String(),
+  text: Type.String(),
+  sentiment: Type.String(),
+  like_count: Type.Integer(),
+  retweet_count: Type.Integer(),
+  reply_count: Type.Integer(),
+  bookmark_count: Type.Integer(),
+  impression_count: Type.Integer(),
+  post_type: Type.String(),
+  country: Type.String(),
+  user: Type.Optional(
+    Type.Object({
+      id: Type.String(),
+      profile_image_url: Type.String(),
+      name: Type.String(),
+      username: Type.String(),
+      verified_type: Type.Optional(Type.String()),
+      followers_count: Type.Integer(),
+    }),
+  ),
+  attachments: Type.Optional(
+    Type.Array(
       Type.Object({
         id: Type.String(),
-        profile_image_url: Type.String(),
-        name: Type.String(),
-        username: Type.String(),
-        verified_type: Type.Optional(Type.String()),
-        followers_count: Type.Integer(),
+        source: Type.String(),
+        url: Type.String(),
       }),
     ),
-    attachments: Type.Optional(
-      Type.Array(
-        Type.Object({
-          id: Type.String(),
-          source: Type.String(),
-          url: Type.String(),
-        }),
-      ),
-    ),
-    posted_at: Type.String({ format: "date-time" }),
-  });
+  ),
+  posted_at: Type.String({ format: "date-time" }),
+});
 
 export type TResponse = Static<typeof IResponse>;
 

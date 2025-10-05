@@ -3,14 +3,13 @@ import fp from "fastify-plugin";
 export default fp(async (fastify) => {
   const { minio, httpErrors } = fastify;
 
-
   const getFilePresignedUrl = async (path: string) => {
     const expirationInSeconds = parseInt(process.env.MINIO_URL_EXPIRATION || "600", 10);
     try {
       let presignedUrl = await minio.presignedGetObject(
         process.env.MINIO_BUCKET_NAME || "x-data",
         path.replace(process.env.MINIO_BUCKET_NAME || "x-data", ""),
-        expirationInSeconds
+        expirationInSeconds,
       );
 
       return presignedUrl;

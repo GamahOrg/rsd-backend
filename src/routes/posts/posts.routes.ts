@@ -12,11 +12,13 @@ const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     schema: getPostsSchema,
     handler: async (request, response) => {
       const { skip, take } = request.pagination!;
+      console.log("1- skip", request.query);
       const { filter } = request.query;
+      console.log("2- filter", filter);
       const { data, totalRecords } = await fastify.postService.getAllPosts(skip, take, filter);
       data.forEach((post) => {
         post.attachments?.forEach(async (attachment) => {
-          if(attachment.source === "minio") {
+          if (attachment.source === "minio") {
             attachment.url = await fastify.minioService.getFilePresignedUrl(attachment.url);
           }
         });
@@ -25,7 +27,6 @@ const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
       return data;
     },
   });
-
 
   // api to get all the replies to a post
   fastify.route<repliesSchemaType>({
@@ -41,7 +42,6 @@ const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     },
   });
 
-
   // api to get specific post
   fastify.route<postSchemaType>({
     method: "GET",
@@ -51,7 +51,7 @@ const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
       const { post_id } = request.params;
       const { data } = await fastify.postService.getPost(post_id);
       console.log(data);
-      
+
       if (data?.attachments) {
         for (const attachment of data.attachments) {
           if (attachment.source === "minio") {
