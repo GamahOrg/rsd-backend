@@ -63,7 +63,10 @@ export default fp(async (fastify) => {
 
   const getPost = async (post_id: string) => {
     const postRepo = AppDataSource.getRepository(Post);
-    const data = await postRepo.findOne({ where: { post_id }, relations: { user: true, attachments: true } });
+    const data = await postRepo.findOne({
+      where: { post_id },
+      relations: { user: true, attachments: true },
+    });
     return { data: data as unknown as GetPostResponse };
   };
 
@@ -83,9 +86,7 @@ declare module "fastify" {
         take: number,
         filter: GetAllPostsFilter | undefined,
       ) => Promise<{ data: GetAllPostsResponse; totalRecords: number }>;
-      getPost: (
-        post_id: string,
-      ) => Promise<{ data: GetPostResponse }>;
+      getPost: (post_id: string) => Promise<{ data: GetPostResponse }>;
       getAllReplies: (
         post_id: string,
         skip: number,
