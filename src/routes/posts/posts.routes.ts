@@ -14,13 +14,6 @@ const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
       const { skip, take } = request.pagination!;
       const { filter } = request.body;
       const { data, totalRecords } = await fastify.postService.getAllPosts(skip, take, filter);
-      data.forEach((post) => {
-        post.attachments?.forEach(async (attachment) => {
-          if (attachment.source === "minio") {
-            attachment.url = await fastify.minioService.getFilePresignedUrl(attachment.url);
-          }
-        });
-      });
       setPaginationHeaders(response, totalRecords, take);
       return data;
     },
@@ -48,13 +41,6 @@ const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     handler: async (request) => {
       const { post_id } = request.params;
       const { data } = await fastify.postService.getPost(post_id);
-      if (data?.attachments) {
-        for (const attachment of data.attachments) {
-          if (attachment.source === "minio") {
-            attachment.url = await fastify.minioService.getFilePresignedUrl(attachment.url);
-          }
-        }
-      }
       return data;
     },
   });

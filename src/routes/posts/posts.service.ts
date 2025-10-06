@@ -19,7 +19,7 @@ export default fp(async (fastify) => {
           ...filterQuery,
         },
       ],
-      relations: { user: true, attachments: true },
+      relations: { user: true },
       skip,
       take,
       order: { posted_at: "asc" },
@@ -39,7 +39,7 @@ export default fp(async (fastify) => {
           conversation_id: post_id,
         },
       ],
-      relations: { user: true, attachments: true },
+      relations: { user: true },
       skip,
       take,
       order: { posted_at: "asc" },
@@ -54,7 +54,7 @@ export default fp(async (fastify) => {
     const postRepo = AppDataSource.getRepository(Post);
     const data = await postRepo.findOne({
       where: { post_id },
-      relations: { user: true, attachments: true },
+      relations: { user: true },
     });
     return { data: data as unknown as GetPostResponse };
   };

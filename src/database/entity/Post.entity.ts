@@ -10,7 +10,6 @@ import {
 } from "typeorm";
 import { User } from "./User.entity";
 import { Mentions } from "./Mentions.entity";
-import { Attachment } from "./Attachment.entity";
 
 @Entity({ name: "post" })
 export class Post extends BaseEntity {
@@ -89,8 +88,4 @@ export class Post extends BaseEntity {
 
   @OneToMany(() => Mentions, (mention) => mention.post)
   mentions?: Mentions[];
-
-  @OneToMany(() => Attachment, (attachment) => attachment.post)
-  @JoinColumn({ name: "post_id", referencedColumnName: "post_id" })
-  attachments?: Attachment[];
 }
