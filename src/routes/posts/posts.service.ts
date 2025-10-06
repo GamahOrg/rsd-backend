@@ -11,7 +11,6 @@ export default fp(async (fastify) => {
   const getAllPosts = async (skip: number, take: number, filter: dataFilterType | undefined) => {
     // query
     const filterQuery = generateFilterQuery(filter as Filter);
-    console.log(filterQuery);
     const postRepo = AppDataSource.getRepository(Post);
     const qb = postRepo.createQueryBuilder("post").setFindOptions({
       where: [

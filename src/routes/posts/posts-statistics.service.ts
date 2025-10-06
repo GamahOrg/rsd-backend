@@ -50,21 +50,51 @@ export default fp(async (fastify) => {
   };
 
   // TODO: implement the function
-  const getDetailedStatistics = async (filter: DataFilterType | undefined) => {
+  const getDetailedStatistics = async (type: string, filter: DataFilterType | undefined) => {
     const filterQuery = generateFilterQuery(filter as Filter);
-    const replyRepo = AppDataSource.getRepository(Post);
+    const postRepo = AppDataSource.getRepository(Post);
+    const queryFilter = {
+      post_type: type == "general" ? In(["post", "quote", "replied_to"]) : type,
+      ...filterQuery,
+    };
+    const [totalRetweets, totalLikes, totalBookmarks, totalImpressions] = await Promise.all([
+      postRepo
+        .createQueryBuilder("post")
+        .leftJoin("post.user", "user")
+        .select("sum(post.retweet_count) as total")
+        .where(queryFilter)
+        .getRawOne() as Promise<{ total: number }>,
+      postRepo
+        .createQueryBuilder("post")
+        .leftJoin("post.user", "user")
+        .select("sum(post.like_count) as total")
+        .where(queryFilter)
+        .getRawOne() as Promise<{ total: number }>,
+      postRepo
+        .createQueryBuilder("post")
+        .leftJoin("post.user", "user")
+        .select("sum(post.bookmark_count) as total")
+        .where(queryFilter)
+        .getRawOne() as Promise<{ total: number }>,
+      postRepo
+        .createQueryBuilder("post")
+        .leftJoin("post.user", "user")
+        .select("sum(post.impression_count) as total")
+        .where(queryFilter)
+        .getRawOne() as Promise<{ total: number }>,
+    ]);
 
-    const qb = replyRepo.createQueryBuilder("detailed-statistics").setFindOptions({
-      where: [
-        {
-          ...filterQuery,
+    return {
+      data: {
+        chart_data: [],
+        metrics: {
+          total_retweets: totalRetweets.total,
+          total_likes: totalLikes.total,
+          total_bookmarks: totalBookmarks.total,
+          total_impressions: totalImpressions.total,
         },
-      ],
-    });
-
-    const data = await qb.getOne();
-
-    return { data: data as unknown as GetAllDetailedStatisticsResponse };
+      } as unknown as GetAllDetailedStatisticsResponse,
+    };
   };
 
   // Decorate the fastify instance with the postService
@@ -81,6 +111,7 @@ declare module "fastify" {
         filter: DataFilterType | undefined,
       ) => Promise<{ data: GetGeneralStatisticsResponse }>;
       getDetailedStatistics: (
+        type: string,
         filter: DataFilterType | undefined,
       ) => Promise<{ data: GetAllDetailedStatisticsResponse }>;
     };

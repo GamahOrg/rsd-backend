@@ -25,8 +25,12 @@ const postStatistics: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
     url: "/detailed/statistics/:type",
     schema: getDetailedStatisticsSchema,
     handler: async (request) => {
+      const { type } = request.params;
       const { filter } = request.body;
-      const { data } = await fastify.postStatisticsService.getDetailedStatistics(filter);
+      if (filter?.post?.post_type) {
+        delete filter.post.post_type;
+      }
+      const { data } = await fastify.postStatisticsService.getDetailedStatistics(type, filter);
       return data;
     },
   });
