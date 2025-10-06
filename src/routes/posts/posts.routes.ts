@@ -7,14 +7,12 @@ import { getPostSchema, postSchemaType } from "./schemas/getPost.schema";
 const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   // api to get all posts
   fastify.route<postsSchemaType>({
-    method: "GET",
+    method: "POST",
     url: "/",
     schema: getPostsSchema,
     handler: async (request, response) => {
       const { skip, take } = request.pagination!;
-      console.log("1- skip", request.query);
-      const { filter } = request.query;
-      console.log("2- filter", filter);
+      const { filter } = request.body;
       const { data, totalRecords } = await fastify.postService.getAllPosts(skip, take, filter);
       data.forEach((post) => {
         post.attachments?.forEach(async (attachment) => {
@@ -50,8 +48,6 @@ const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     handler: async (request) => {
       const { post_id } = request.params;
       const { data } = await fastify.postService.getPost(post_id);
-      console.log(data);
-
       if (data?.attachments) {
         for (const attachment of data.attachments) {
           if (attachment.source === "minio") {

@@ -55,13 +55,10 @@ export const IFilter = Type.Object({
 });
 export type TFilter = Static<typeof IFilter>;
 
-const IQuerystring = Type.Composite([
-  Type.Object({
-    filter: Type.Optional(IFilter),
-  }),
-  IPagination,
-]);
-type TQuerystring = Static<typeof IQuerystring>;
+const IBody = Type.Object({
+  filter: Type.Optional(IFilter),
+});
+type TBody = Static<typeof IBody>;
 
 const IResponse = Type.Array(
   Type.Object({
@@ -102,7 +99,8 @@ const IResponse = Type.Array(
 export type TResponse = Static<typeof IResponse>;
 
 export type postsSchemaType = {
-  Querystring: TQuerystring;
+  Querystring: IPagination;
+  Body: TBody;
   Response: TResponse;
   Error: TError;
 };
@@ -112,7 +110,8 @@ export const getPostsSchema = {
   deprecated: false,
   summary: "get all posts",
   description: "get all posts",
-  querystring: IQuerystring,
+  querystring: IPagination,
+  body: IBody,
   response: {
     200: IResponse,
     400: IError,

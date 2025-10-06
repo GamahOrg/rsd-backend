@@ -14,7 +14,7 @@ export default fp(async (fastify) => {
   const getAllPosts = async (skip: number, take: number, filter: GetAllPostsFilter | undefined) => {
     // query
     const filterQuery = generateFilterQuery(filter as Filter);
-    // console.log(filterQuery);
+    console.log(filterQuery);
     const postRepo = AppDataSource.getRepository(Post);
     const qb = postRepo.createQueryBuilder("post").setFindOptions({
       where: [
@@ -28,13 +28,6 @@ export default fp(async (fastify) => {
       take,
       order: { posted_at: "asc" },
     });
-
-    // Log raw SQL and parameters
-    // const rawSql = qb.getSql();
-    // const rawParams = qb.getParameters();
-    // console.log("Raw SQL:", rawSql);
-    // console.log("SQL Params:", rawParams);
-
     const [data, totalRecords] = await qb.getManyAndCount();
 
     return { data: data as unknown as GetAllPostsResponse, totalRecords };
