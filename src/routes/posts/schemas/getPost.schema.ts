@@ -29,15 +29,6 @@ const IResponse = Type.Object({
       followers_count: Type.Integer(),
     }),
   ),
-  attachments: Type.Optional(
-    Type.Array(
-      Type.Object({
-        id: Type.String(),
-        source: Type.String(),
-        url: Type.String(),
-      }),
-    ),
-  ),
   posted_at: Type.String({ format: "date-time" }),
 });
 
