@@ -10,20 +10,28 @@ interface FilterQueryGenerator {
 }
 
 export interface Filter {
-  posted_at?: DateRange;
-  sentiment?: string[];
-  post_type?: string[];
-  username?: string[];
-  keywords?: string[];
-  followers_count?: { min?: number; max?: number };
-  like_count?: { min?: number; max?: number };
-  retweet_count?: { min?: number; max?: number };
-  reply_count?: { min?: number; max?: number };
-  bookmark_count?: { min?: number; max?: number };
-  impression_count?: { min?: number; max?: number };
-  country?: string[];
-  is_verified?: boolean;
-  verified_type?: string[];
+  post?: {
+    posted_at?: DateRange;
+    sentiment?: string[];
+    post_type?: string[];
+    keywords?: string[];
+    country?: string[];
+    metrics?: {
+      like_count?: { min?: number; max?: number };
+      retweet_count?: { min?: number; max?: number };
+      reply_count?: { min?: number; max?: number };
+      bookmark_count?: { min?: number; max?: number };
+      impression_count?: { min?: number; max?: number };
+    };
+  };
+  user?: {
+    username?: string[];
+    is_verified?: boolean;
+    verified_type?: string[];
+    metrics?: {
+      followers_count?: { min?: number; max?: number };
+    };
+  };
 }
 
 type NumberRange = { min?: number; max?: number } | undefined;
@@ -66,18 +74,19 @@ const buildDateRangeFilter = (field: string, range?: DateRange) => {
 
 const buildUserFilters = (filter: Filter) => {
   const hasFollowersRange = !!(
-    filter.followers_count &&
-    (isDefined(filter.followers_count.min) || isDefined(filter.followers_count.max))
+    filter.user?.metrics?.followers_count &&
+    (isDefined(filter.user?.metrics?.followers_count.min) ||
+      isDefined(filter.user?.metrics?.followers_count.max))
   );
-  const hasVerified = filter.is_verified !== undefined;
-  const hasVerifiedType = !!(filter.verified_type && filter.verified_type.length);
+  const hasVerified = filter.user?.is_verified !== undefined;
+  const hasVerifiedType = !!(filter.user?.verified_type && filter.user?.verified_type.length);
   if (!hasFollowersRange && !hasVerified && !hasVerifiedType) return {};
 
   return {
     user: {
-      ...buildNumberRangeFilter("followers_count", filter.followers_count),
-      ...(hasVerified ? { is_verified: filter.is_verified } : {}),
-      ...(hasVerifiedType ? { verified_type: In(filter.verified_type!) } : {}),
+      ...buildNumberRangeFilter("followers_count", filter.user?.metrics?.followers_count),
+      ...(hasVerified ? { is_verified: filter.user?.is_verified } : {}),
+      ...(hasVerifiedType ? { verified_type: In(filter.user?.verified_type!) } : {}),
     },
   };
 };
@@ -85,17 +94,27 @@ const buildUserFilters = (filter: Filter) => {
 export const generateFilterQuery = (filter?: Filter) => {
   if (!filter) return {};
   return {
-    ...(filter.posted_at ? buildDateRangeFilter("posted_at", filter.posted_at) : {}),
-    ...(filter.sentiment && filter.sentiment.length > 0 ? { sentiment: In(filter.sentiment) } : {}),
-    ...(filter.post_type && filter.post_type.length > 0 ? { post_type: In(filter.post_type) } : {}),
-    ...(filter.username && filter.username.length > 0 ? { username: In(filter.username) } : {}),
-    ...(filter.keywords && filter.keywords.length > 0 ? { keywords: In(filter.keywords) } : {}),
-    ...buildNumberRangeFilter("like_count", filter.like_count),
-    ...buildNumberRangeFilter("retweet_count", filter.retweet_count),
-    ...buildNumberRangeFilter("reply_count", filter.reply_count),
-    ...buildNumberRangeFilter("bookmark_count", filter.bookmark_count),
-    ...buildNumberRangeFilter("impression_count", filter.impression_count),
-    ...(filter.country ? { country: In(filter.country) } : {}),
+    ...(filter.post?.posted_at ? buildDateRangeFilter("posted_at", filter.post?.posted_at) : {}),
+    ...(filter.post?.sentiment && filter.post?.sentiment.length > 0
+      ? { sentiment: In(filter.post?.sentiment) }
+      : {}),
+    ...(filter.post?.post_type && filter.post?.post_type.length > 0
+      ? { post_type: In(filter.post?.post_type) }
+      : {}),
+    ...(filter.user?.username && filter.user?.username.length > 0
+      ? { username: In(filter.user?.username) }
+      : {}),
+    ...(filter.post?.keywords && filter.post?.keywords.length > 0
+      ? { keywords: In(filter.post?.keywords) }
+      : {}),
+    ...(filter.post?.country && filter.post?.country.length > 0
+      ? { country: In(filter.post?.country) }
+      : {}),
+    ...buildNumberRangeFilter("like_count", filter.post?.metrics?.like_count),
+    ...buildNumberRangeFilter("retweet_count", filter.post?.metrics?.retweet_count),
+    ...buildNumberRangeFilter("reply_count", filter.post?.metrics?.reply_count),
+    ...buildNumberRangeFilter("bookmark_count", filter.post?.metrics?.bookmark_count),
+    ...buildNumberRangeFilter("impression_count", filter.post?.metrics?.impression_count),
     ...buildUserFilters(filter),
   };
 };

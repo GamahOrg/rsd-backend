@@ -1,17 +1,14 @@
 import fp from "fastify-plugin";
-import {
-  TFilter as GetAllPostsFilter,
-  TResponse as GetAllPostsResponse,
-} from "./schemas/getPosts.schema";
+import { TResponse as GetAllPostsResponse } from "./schemas/getPosts.schema";
 import { TResponse as GetAllRepliesResponse } from "./schemas/getReplies.schema";
 import { AppDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
 import { In } from "typeorm";
 import { Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 import { TResponse as GetPostResponse } from "./schemas/getPost.schema";
-
+import { TFilter as dataFilterType } from "../../models/types/comment.type";
 export default fp(async (fastify) => {
-  const getAllPosts = async (skip: number, take: number, filter: GetAllPostsFilter | undefined) => {
+  const getAllPosts = async (skip: number, take: number, filter: dataFilterType | undefined) => {
     // query
     const filterQuery = generateFilterQuery(filter as Filter);
     console.log(filterQuery);
@@ -77,7 +74,7 @@ declare module "fastify" {
       getAllPosts: (
         skip: number,
         take: number,
-        filter: GetAllPostsFilter | undefined,
+        filter: dataFilterType | undefined,
       ) => Promise<{ data: GetAllPostsResponse; totalRecords: number }>;
       getPost: (post_id: string) => Promise<{ data: GetPostResponse }>;
       getAllReplies: (

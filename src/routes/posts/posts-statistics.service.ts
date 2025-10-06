@@ -1,16 +1,15 @@
 import fp from "fastify-plugin";
-import { TFilter as GetAllPostsFilter } from "./schemas/getPosts.schema";
+import { TFilter as DataFilterType } from "../../models/types/comment.type";
+import { In } from "typeorm";
 import { AppDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
 import { Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 import { TResponse as GetGeneralStatisticsResponse } from "./schemas/statistics/getGeneralStatistics.schema";
-import { In } from "typeorm";
 import { TResponse as GetAllDetailedStatisticsResponse } from "./schemas/statistics/getDetailedStatistics.schema";
 
 export default fp(async (fastify) => {
-  const getGeneralStatistics = async (filter: GetAllPostsFilter | undefined) => {
+  const getGeneralStatistics = async (filter: DataFilterType | undefined) => {
     const filterQuery = generateFilterQuery(filter as Filter);
-    console.log("filterQuery", filterQuery);
     const postRepo = AppDataSource.getRepository(Post);
 
     const [generalCount, postsCount, quotesCount, repliesCount] = await Promise.all([
@@ -51,7 +50,7 @@ export default fp(async (fastify) => {
   };
 
   // TODO: implement the function
-  const getDetailedStatistics = async (filter: GetAllPostsFilter | undefined) => {
+  const getDetailedStatistics = async (filter: DataFilterType | undefined) => {
     const filterQuery = generateFilterQuery(filter as Filter);
     const replyRepo = AppDataSource.getRepository(Post);
 
@@ -79,10 +78,10 @@ declare module "fastify" {
   interface FastifyInstance {
     postStatisticsService: {
       getGeneralStatistics: (
-        filter: GetAllPostsFilter | undefined,
+        filter: DataFilterType | undefined,
       ) => Promise<{ data: GetGeneralStatisticsResponse }>;
       getDetailedStatistics: (
-        filter: GetAllPostsFilter | undefined,
+        filter: DataFilterType | undefined,
       ) => Promise<{ data: GetAllDetailedStatisticsResponse }>;
     };
   }
