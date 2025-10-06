@@ -5,81 +5,73 @@ import { Post } from "../../database/entity/Post.entity";
 import { Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 import { TResponse as GetGeneralStatisticsResponse } from "./schemas/statistics/getGeneralStatistics.schema";
 import { In } from "typeorm";
-// import { TResponse as GetAllPostsDetailedStatisticsResponseResponse } from "./schemas/statistics/getDetailedStatistics.schema";
+import { TResponse as GetAllDetailedStatisticsResponse } from "./schemas/statistics/getDetailedStatistics.schema";
 
 export default fp(async (fastify) => {
   const getGeneralStatistics = async (filter: GetAllPostsFilter | undefined) => {
-    // query
     const filterQuery = generateFilterQuery(filter as Filter);
+    console.log("filterQuery", filterQuery);
     const postRepo = AppDataSource.getRepository(Post);
-    const generalQb = postRepo
-      .createQueryBuilder("post")
-      .select("COUNT(*) as total")
-      .where({
-        post_type: In(["post", "quote", "replied_to"]),
-        ...filterQuery,
-      });
-    const totalQuotesQb = postRepo
-      .createQueryBuilder("post")
-      .select("COUNT(*) as total")
-      .where({
-        post_type: "quote",
-        ...filterQuery,
-      });
-    const totalRepliesQb = postRepo
-      .createQueryBuilder("post")
-      .select("COUNT(*) as total")
-      .where({
-        post_type: "replied_to",
-        ...filterQuery,
-      });
 
-    const totalPostsQb = postRepo
-      .createQueryBuilder("post")
-      .select("COUNT(*) as total")
-      .where({
-        post_type: "post",
-        ...filterQuery,
-      });
-
-    const [totalGeneral, totalPosts, totalQuotes, totalReplies] = await Promise.all([
-      generalQb.getRawOne(),
-      totalPostsQb.getRawOne(),
-      totalQuotesQb.getRawOne(),
-      totalRepliesQb.getRawOne(),
+    const [generalCount, postsCount, quotesCount, repliesCount] = await Promise.all([
+      postRepo.count({
+        where: {
+          post_type: In(["post", "quote", "replied_to"]),
+          ...filterQuery,
+        },
+      }),
+      postRepo.count({
+        where: {
+          post_type: "post",
+          ...filterQuery,
+        },
+      }),
+      postRepo.count({
+        where: {
+          post_type: "quote",
+          ...filterQuery,
+        },
+      }),
+      postRepo.count({
+        where: {
+          post_type: "replied_to",
+          ...filterQuery,
+        },
+      }),
     ]);
 
     return {
       data: {
-        general: totalGeneral.total,
-        quote: totalQuotes.total,
-        replies: totalReplies.total,
-        posts: totalPosts.total,
+        general: generalCount,
+        quote: quotesCount,
+        replies: repliesCount,
+        posts: postsCount,
       },
     };
   };
 
-  // const getDetailedStatistics = async (filter: GetAllPostsFilter | undefined) => {
-  //   const filterQuery = generateFilterQuery(filter as Filter);
-  //   const replyRepo = AppDataSource.getRepository(Post);
+  // TODO: implement the function
+  const getDetailedStatistics = async (filter: GetAllPostsFilter | undefined) => {
+    const filterQuery = generateFilterQuery(filter as Filter);
+    const replyRepo = AppDataSource.getRepository(Post);
 
-  //   const qb = replyRepo.createQueryBuilder("detailed-statistics").setFindOptions({
-  //     where: [
-  //       {
-  //         ...filterQuery,
-  //       },
-  //     ]
-  //   });
+    const qb = replyRepo.createQueryBuilder("detailed-statistics").setFindOptions({
+      where: [
+        {
+          ...filterQuery,
+        },
+      ],
+    });
 
-  //   const data = await qb.getOne();
+    const data = await qb.getOne();
 
-  //   return { data: data as unknown as GetAllPostsDetailedStatisticsResponseResponse };
-  // };
+    return { data: data as unknown as GetAllDetailedStatisticsResponse };
+  };
 
   // Decorate the fastify instance with the postService
   fastify.decorate("postStatisticsService", {
     getGeneralStatistics,
-    // getDetailedStatistics,
+    getDetailedStatistics,
   });
 });
 
@@ -89,9 +81,9 @@ declare module "fastify" {
       getGeneralStatistics: (
         filter: GetAllPostsFilter | undefined,
       ) => Promise<{ data: GetGeneralStatisticsResponse }>;
-      // getDetailedStatistics: (
-      //   filter: GetAllPostsFilter | undefined,
-      // ) => Promise<{ data: GetAllPostsDetailedStatisticsResponseResponse }>;
+      getDetailedStatistics: (
+        filter: GetAllPostsFilter | undefined,
+      ) => Promise<{ data: GetAllDetailedStatisticsResponse }>;
     };
   }
 }

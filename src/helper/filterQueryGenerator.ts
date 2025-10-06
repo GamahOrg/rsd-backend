@@ -14,7 +14,7 @@ export interface Filter {
   sentiment?: string[];
   post_type?: string[];
   username?: string[];
-  query: string;
+  keywords?: string[];
   followers_count?: { min?: number; max?: number };
   like_count?: { min?: number; max?: number };
   retweet_count?: { min?: number; max?: number };
@@ -86,9 +86,10 @@ export const generateFilterQuery = (filter?: Filter) => {
   if (!filter) return {};
   return {
     ...(filter.posted_at ? buildDateRangeFilter("posted_at", filter.posted_at) : {}),
-    ...(filter.sentiment ? { sentiment: In(filter.sentiment) } : {}),
-    ...(filter.post_type ? { post_type: In(filter.post_type) } : {}),
-    ...(filter.username ? { username: In(filter.username) } : {}),
+    ...(filter.sentiment && filter.sentiment.length > 0 ? { sentiment: In(filter.sentiment) } : {}),
+    ...(filter.post_type && filter.post_type.length > 0 ? { post_type: In(filter.post_type) } : {}),
+    ...(filter.username && filter.username.length > 0 ? { username: In(filter.username) } : {}),
+    ...(filter.keywords && filter.keywords.length > 0 ? { keywords: In(filter.keywords) } : {}),
     ...buildNumberRangeFilter("like_count", filter.like_count),
     ...buildNumberRangeFilter("retweet_count", filter.retweet_count),
     ...buildNumberRangeFilter("reply_count", filter.reply_count),

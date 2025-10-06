@@ -55,10 +55,10 @@ export const IFilter = Type.Object({
 });
 export type TFilter = Static<typeof IFilter>;
 
-const IQuerystring = Type.Object({
+const IBody = Type.Object({
   filter: Type.Optional(IFilter),
 });
-type TQuerystring = Static<typeof IQuerystring>;
+type TBody = Static<typeof IBody>;
 
 const IResponse = Type.Object({
   general: Type.Integer(),
@@ -70,7 +70,7 @@ const IResponse = Type.Object({
 export type TResponse = Static<typeof IResponse>;
 
 export type getGeneralStatisticsSchemaType = {
-  Querystring: TQuerystring;
+  Body: TBody;
   Response: TResponse;
   Error: TError;
 };
@@ -80,7 +80,7 @@ export const getGeneralStatisticsSchema = {
   deprecated: false,
   summary: "get general statistics",
   description: "get general statistics",
-  querystring: IQuerystring,
+  body: IBody,
   response: {
     200: IResponse,
     400: IError,
