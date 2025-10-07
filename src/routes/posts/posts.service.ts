@@ -54,7 +54,7 @@ export default fp(async (fastify) => {
     const postRepo = AppDataSource.getRepository(Post);
     const data = await postRepo.findOne({
       where: { post_id },
-      relations: { user: true },
+      relations: { user: true, country: true },
     });
     return { data: data as unknown as GetPostResponse };
   };

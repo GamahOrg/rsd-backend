@@ -18,7 +18,11 @@ const IResponse = Type.Object({
   bookmark_count: Type.Integer(),
   impression_count: Type.Integer(),
   post_type: Type.String(),
-  country: Type.String(),
+  country: Type.Object({
+    id: Type.String(),
+    arabic_name: Type.String(),
+    english_name: Type.String(),
+  }),
   user: Type.Optional(
     Type.Object({
       id: Type.String(),

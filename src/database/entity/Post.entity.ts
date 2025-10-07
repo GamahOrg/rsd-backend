@@ -10,6 +10,7 @@ import {
 } from "typeorm";
 import { User } from "./User.entity";
 import { Mentions } from "./Mentions.entity";
+import { Country } from "./Country.entity";
 
 @Entity({ name: "post" })
 export class Post extends BaseEntity {
@@ -37,8 +38,8 @@ export class Post extends BaseEntity {
   @Column({ type: "varchar", length: 50, nullable: true })
   sentiment?: string;
 
-  @Column({ type: "varchar", length: 50, nullable: true })
-  country?: string;
+  // @Column({ type: "varchar", length: 50, nullable: true })
+  // country?: string;
 
   @Column({ type: "bit", nullable: true })
   possibly_sensitive?: boolean;
@@ -88,4 +89,8 @@ export class Post extends BaseEntity {
 
   @OneToMany(() => Mentions, (mention) => mention.post)
   mentions?: Mentions[];
+
+  @ManyToOne(() => Country, (country) => country.english_name)
+  @JoinColumn({ name: "country", referencedColumnName: "english_name" })
+  country?: Country;
 }

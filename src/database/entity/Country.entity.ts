@@ -1,4 +1,5 @@
-import { BaseEntity, Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { BaseEntity, Entity, PrimaryGeneratedColumn, Column, OneToMany } from "typeorm";
+import { Post } from "./Post.entity";
 
 @Entity({ name: "countries_lookup" })
 export class Country extends BaseEntity {
@@ -10,4 +11,7 @@ export class Country extends BaseEntity {
 
   @Column({ type: "nvarchar", nullable: false })
   english_name?: string;
+
+  @OneToMany(() => Post, (post) => post.country)
+  posts?: Post[];
 }
