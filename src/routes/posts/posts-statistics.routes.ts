@@ -7,6 +7,10 @@ import {
   getDetailedStatisticsSchema,
   getDetailedStatisticsSchemaType,
 } from "./schemas/statistics/getDetailedStatistics.schema";
+import {
+  getSentimentStatisticsSchema,
+  getSentimentStatisticsSchemaType,
+} from "./schemas/statistics/getSentimentStatistics.schema";
 
 const postStatistics: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.route<getGeneralStatisticsSchemaType>({
@@ -35,17 +39,16 @@ const postStatistics: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
     },
   });
 
-  fastify.route<getDetailedStatisticsSchemaType>({
+  fastify.route<getSentimentStatisticsSchemaType>({
     method: "POST",
     url: "/statistics/sentiment",
-    schema: getDetailedStatisticsSchema,
+    schema: getSentimentStatisticsSchema,
     handler: async (request) => {
-      const { type } = request.params;
       const { filter } = request.body;
       if (filter?.post?.post_type) {
         delete filter.post.post_type;
       }
-      const { data } = await fastify.postStatisticsService.getDetailedStatistics(type, filter);
+      const { data } = await fastify.postStatisticsService.getSentimentStatistics(filter);
       return data;
     },
   });

@@ -6,6 +6,7 @@ import { Post } from "../../database/entity/Post.entity";
 import { Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 import { TResponse as GetGeneralStatisticsResponse } from "./schemas/statistics/getGeneralStatistics.schema";
 import { TResponse as GetAllDetailedStatisticsResponse } from "./schemas/statistics/getDetailedStatistics.schema";
+import { TResponse as GetSentimentStatisticsResponse } from "./schemas/statistics/getSentimentStatistics.schema";
 
 export default fp(async (fastify) => {
   const getGeneralStatistics = async (filter: DataFilterType | undefined) => {
@@ -97,10 +98,36 @@ export default fp(async (fastify) => {
     };
   };
 
+  const getSentimentStatistics = async (filter?: DataFilterType) => {
+    const postRepo = AppDataSource.getRepository(Post);
+    const filterQuery = generateFilterQuery(filter as Filter);
+
+    const sentiments = ["positive", "negative", "neutral"] as const;
+
+    const counts = await Promise.all(
+      sentiments.map((sentiment) => postRepo.count({ where: { sentiment, ...filterQuery } })),
+    );
+
+    const [positive, negative, neutral] = counts;
+    const total = positive + negative + neutral;
+
+    return {
+      data: {
+        positive: toPercentage(positive, total),
+        negative: toPercentage(negative, total),
+        neutral: toPercentage(neutral, total),
+      },
+    };
+  };
+
+  const toPercentage = (count: number, total: number) =>
+    total > 0 ? Math.round((count / total) * 10000) / 100 : 0; // rounded to 2 decimals
+
   // Decorate the fastify instance with the postService
   fastify.decorate("postStatisticsService", {
     getGeneralStatistics,
     getDetailedStatistics,
+    getSentimentStatistics,
   });
 });
 
@@ -114,6 +141,9 @@ declare module "fastify" {
         type: string,
         filter: DataFilterType | undefined,
       ) => Promise<{ data: GetAllDetailedStatisticsResponse }>;
+      getSentimentStatistics: (
+        filter: DataFilterType | undefined,
+      ) => Promise<{ data: GetSentimentStatisticsResponse }>;
     };
   }
 }
