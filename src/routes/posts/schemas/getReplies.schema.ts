@@ -51,6 +51,7 @@ export const getRepliesSchema = {
   summary: "get all replies",
   description: "get all replies",
   querystring: IQuerystring,
+  params: IParams,
   response: {
     200: IResponse,
     400: IError,

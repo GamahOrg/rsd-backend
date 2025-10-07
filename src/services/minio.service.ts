@@ -6,7 +6,7 @@ export default fp(async (fastify) => {
   const getFilePresignedUrl = async (path: string) => {
     const expirationInSeconds = parseInt(process.env.MINIO_URL_EXPIRATION || "600", 10);
     try {
-      let presignedUrl = await minio.presignedGetObject(
+      const presignedUrl = await minio.presignedGetObject(
         process.env.MINIO_BUCKET_NAME || "x-data",
         path.replace(process.env.MINIO_BUCKET_NAME || "x-data", ""),
         expirationInSeconds,

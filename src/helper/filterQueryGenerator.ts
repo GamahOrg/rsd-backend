@@ -5,10 +5,6 @@ interface DateRange {
   to?: string;
 }
 
-interface FilterQueryGenerator {
-  generateFilterQuery(filter: Filter): string;
-}
-
 export interface Filter {
   post?: {
     posted_at?: DateRange;

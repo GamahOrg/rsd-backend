@@ -1,5 +1,5 @@
 import { Type, Static } from "@sinclair/typebox";
-import { IError, TError, IDateTimeRange } from "../../../../helper/common";
+import { IError, TError } from "../../../../helper/common";
 import { IFilter } from "../../../../models/types/comment.type";
 
 const IBody = Type.Object({
