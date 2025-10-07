@@ -90,7 +90,7 @@ export class Post extends BaseEntity {
   @OneToMany(() => Mentions, (mention) => mention.post)
   mentions?: Mentions[];
 
-  @ManyToOne(() => Country, (country) => country.english_name)
+  @ManyToOne(() => Country, (country) => country.english_name, { nullable: true })
   @JoinColumn({ name: "country", referencedColumnName: "english_name" })
   country?: Country;
 }
