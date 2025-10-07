@@ -11,6 +11,7 @@ import {
   getSentimentStatisticsSchema,
   getSentimentStatisticsSchemaType,
 } from "./schemas/statistics/getSentimentStatistics.schema";
+import { GroupBy } from "./posts-statistics.service";
 
 const postStatistics: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.route<getGeneralStatisticsSchemaType>({
@@ -30,11 +31,16 @@ const postStatistics: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
     schema: getDetailedStatisticsSchema,
     handler: async (request) => {
       const { type } = request.params;
+      const { groupBy } = request.query as { groupBy: GroupBy };
       const { filter } = request.body;
       if (filter?.post?.post_type) {
         delete filter.post.post_type;
       }
-      const { data } = await fastify.postStatisticsService.getDetailedStatistics(type, filter);
+      const { data } = await fastify.postStatisticsService.getDetailedStatistics(
+        type,
+        groupBy,
+        filter,
+      );
       return data;
     },
   });

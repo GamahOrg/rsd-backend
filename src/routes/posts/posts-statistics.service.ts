@@ -8,6 +8,8 @@ import { TResponse as GetGeneralStatisticsResponse } from "./schemas/statistics/
 import { TResponse as GetAllDetailedStatisticsResponse } from "./schemas/statistics/getDetailedStatistics.schema";
 import { TResponse as GetSentimentStatisticsResponse } from "./schemas/statistics/getSentimentStatistics.schema";
 
+export type GroupBy = "day" | "month" | "quarter" | "year" | "hour";
+
 export default fp(async (fastify) => {
   const getGeneralStatistics = async (filter: DataFilterType | undefined) => {
     const filterQuery = generateFilterQuery(filter as Filter);
@@ -16,26 +18,26 @@ export default fp(async (fastify) => {
     const [generalCount, postsCount, quotesCount, repliesCount] = await Promise.all([
       postRepo.count({
         where: {
+          ...filterQuery,
           post_type: In(["post", "quote", "replied_to"]),
-          ...filterQuery,
         },
       }),
       postRepo.count({
         where: {
+          ...filterQuery,
           post_type: "post",
-          ...filterQuery,
         },
       }),
       postRepo.count({
         where: {
+          ...filterQuery,
           post_type: "quote",
-          ...filterQuery,
         },
       }),
       postRepo.count({
         where: {
-          post_type: "replied_to",
           ...filterQuery,
+          post_type: "replied_to",
         },
       }),
     ]);
@@ -50,50 +52,119 @@ export default fp(async (fastify) => {
     };
   };
 
-  // TODO: implement the function
-  const getDetailedStatistics = async (type: string, filter: DataFilterType | undefined) => {
+  const buildGrouping = (groupBy: GroupBy) => {
+    switch (groupBy) {
+      case "month":
+        return {
+          select: [
+            "DATEPART(MONTH, post.posted_at) AS month",
+            "DATEPART(YEAR, post.posted_at) AS year",
+          ],
+          group: ["DATEPART(MONTH, post.posted_at)", "DATEPART(YEAR, post.posted_at)"],
+          order: ["year", "month"],
+        };
+      case "quarter":
+        return {
+          select: [
+            "DATEPART(QUARTER, post.posted_at) AS quarter",
+            "DATEPART(YEAR, post.posted_at) AS year",
+          ],
+          group: ["DATEPART(QUARTER, post.posted_at)", "DATEPART(YEAR, post.posted_at)"],
+          order: ["year", "quarter"],
+        };
+      case "year":
+        return {
+          select: ["DATEPART(YEAR, post.posted_at) AS year"],
+          group: ["DATEPART(YEAR, post.posted_at)"],
+          order: ["year"],
+        };
+      case "hour":
+        return {
+          select: [
+            "DATEPART(HOUR, post.posted_at) AS hour",
+            "DATEPART(DAY, post.posted_at) AS day",
+            "DATEPART(MONTH, post.posted_at) AS month",
+            "DATEPART(YEAR, post.posted_at) AS year",
+          ],
+          group: [
+            "DATEPART(HOUR, post.posted_at)",
+            "DATEPART(DAY, post.posted_at)",
+            "DATEPART(MONTH, post.posted_at)",
+            "DATEPART(YEAR, post.posted_at)",
+          ],
+          order: ["year", "month", "day", "hour"],
+        };
+      case "day":
+      default:
+        return {
+          select: [
+            "DATEPART(DAY, post.posted_at) AS day",
+            "DATEPART(MONTH, post.posted_at) AS month",
+            "DATEPART(YEAR, post.posted_at) AS year",
+          ],
+          group: [
+            "DATEPART(DAY, post.posted_at)",
+            "DATEPART(MONTH, post.posted_at)",
+            "DATEPART(YEAR, post.posted_at)",
+          ],
+          order: ["year", "month", "day"],
+        };
+    }
+  };
+
+  const getDetailedStatistics = async (
+    type: string,
+    groupBy: GroupBy,
+    filter: DataFilterType | undefined,
+  ) => {
     const filterQuery = generateFilterQuery(filter as Filter);
     const postRepo = AppDataSource.getRepository(Post);
-    const queryFilter = {
-      post_type: type == "general" ? In(["post", "quote", "replied_to"]) : type,
+
+    // normalize post types
+    const postTypes = type === "general" ? In(["post", "quote", "replied_to"]) : type;
+
+    const baseWhere = {
       ...filterQuery,
+      post_type: postTypes,
     };
-    const [totalRetweets, totalLikes, totalBookmarks, totalImpressions] = await Promise.all([
-      postRepo
-        .createQueryBuilder("post")
-        .leftJoin("post.user", "user")
-        .select("sum(post.retweet_count) as total")
-        .where(queryFilter)
-        .getRawOne() as Promise<{ total: number }>,
-      postRepo
-        .createQueryBuilder("post")
-        .leftJoin("post.user", "user")
-        .select("sum(post.like_count) as total")
-        .where(queryFilter)
-        .getRawOne() as Promise<{ total: number }>,
-      postRepo
-        .createQueryBuilder("post")
-        .leftJoin("post.user", "user")
-        .select("sum(post.bookmark_count) as total")
-        .where(queryFilter)
-        .getRawOne() as Promise<{ total: number }>,
-      postRepo
-        .createQueryBuilder("post")
-        .leftJoin("post.user", "user")
-        .select("sum(post.impression_count) as total")
-        .where(queryFilter)
-        .getRawOne() as Promise<{ total: number }>,
-    ]);
+
+    const metrics = (await postRepo
+      .createQueryBuilder("post")
+      .leftJoin("post.user", "user")
+      .select([
+        "COALESCE(SUM(post.retweet_count), 0) AS total_retweets",
+        "COALESCE(SUM(post.like_count), 0) AS total_likes",
+        "COALESCE(SUM(post.bookmark_count), 0) AS total_bookmarks",
+        "COALESCE(SUM(post.impression_count), 0) AS total_impressions",
+      ])
+      .where(baseWhere)
+      .getRawOne()) as {
+      total_retweets: number;
+      total_likes: number;
+      total_bookmarks: number;
+      total_impressions: number;
+    };
+
+    // 2) chart data grouped by requested grain
+    const { select, group, order } = buildGrouping(groupBy);
+
+    const chartQb = postRepo
+      .createQueryBuilder("post")
+      .leftJoin("post.user", "user")
+      .select([...select, "COUNT(*) AS total"])
+      .where(baseWhere)
+      .groupBy(group.join(", "));
+
+    // apply stable ASC ordering across all aliases
+    chartQb.orderBy(order[0], "ASC");
+    for (const col of order.slice(1)) chartQb.addOrderBy(col, "ASC");
+
+    const chartData = await chartQb.getRawMany();
 
     return {
       data: {
-        chart_data: [],
-        metrics: {
-          total_retweets: totalRetweets.total,
-          total_likes: totalLikes.total,
-          total_bookmarks: totalBookmarks.total,
-          total_impressions: totalImpressions.total,
-        },
+        chart_data: chartData,
+        metrics,
       } as unknown as GetAllDetailedStatisticsResponse,
     };
   };
@@ -139,6 +210,7 @@ declare module "fastify" {
       ) => Promise<{ data: GetGeneralStatisticsResponse }>;
       getDetailedStatistics: (
         type: string,
+        groupBy: GroupBy,
         filter: DataFilterType | undefined,
       ) => Promise<{ data: GetAllDetailedStatisticsResponse }>;
       getSentimentStatistics: (
