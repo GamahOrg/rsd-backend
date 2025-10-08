@@ -8,6 +8,7 @@
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "typeorm": "typeorm-ts-node-commonjs",
+    "migrate:test-db": "ts-node --project db-scripts/tsconfig.json db-scripts/migrate-data.ts",
     "lint": "eslint 'src/**/*.{ts,tsx}'",
     "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
     "format": "prettier -c .",
