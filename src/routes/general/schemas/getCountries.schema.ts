@@ -1,5 +1,6 @@
 import { Type, Static } from "@sinclair/typebox";
-import { IError, TError, IPagination } from "../../../helper/common";
+import { IError, TError } from "../../../helper/common";
+import { RouteGenericInterface } from "fastify";
 
 const IResponse = Type.Array(
   Type.Object({
@@ -11,8 +12,7 @@ const IResponse = Type.Array(
 
 export type TResponse = Static<typeof IResponse>;
 
-export type countriesSchemaType = {
-  Querystring: IPagination;
+export type countriesSchemaType = RouteGenericInterface & {
   Response: TResponse;
   Error: TError;
 };
@@ -22,7 +22,6 @@ export const getCountriesSchema = {
   deprecated: false,
   summary: "get all countries",
   description: "get all countries",
-  querystring: IPagination,
   response: {
     200: IResponse,
     400: IError,

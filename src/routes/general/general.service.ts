@@ -4,10 +4,10 @@ import { AppDataSource } from "../../config/database";
 import { Country } from "../../database/entity/Country.entity";
 
 export default fp(async (fastify) => {
-  const getCountries = async (skip: number, take: number) => {
+  const getCountries = async () => {
     const countryRepo = AppDataSource.getRepository(Country);
-    const data = await countryRepo.find({ skip, take });
-    return { data: data as unknown as GetCountriesResponse, totalRecords: data.length };
+    const data = await countryRepo.find();
+    return { data: data as unknown as GetCountriesResponse };
   };
 
   // Decorate the fastify instance with the postService
@@ -19,10 +19,7 @@ export default fp(async (fastify) => {
 declare module "fastify" {
   interface FastifyInstance {
     generalService: {
-      getCountries: (
-        skip: number,
-        take: number,
-      ) => Promise<{ data: GetCountriesResponse; totalRecords: number }>;
+      getCountries: () => Promise<{ data: GetCountriesResponse }>;
     };
   }
 }
