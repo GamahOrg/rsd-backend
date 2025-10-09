@@ -1,4 +1,4 @@
-import { Between, In, MoreThanOrEqual, LessThanOrEqual } from "typeorm";
+import { Between, In, MoreThanOrEqual, LessThanOrEqual, Like } from "typeorm";
 
 interface DateRange {
   from?: string;
@@ -101,7 +101,10 @@ export const generateFilterQuery = (filter?: Filter) => {
       ? { username: In(filter.user?.username) }
       : {}),
     ...(filter.post?.keywords && filter.post?.keywords.length > 0
-      ? { keywords: In(filter.post?.keywords) }
+      ? {
+          // Match if any keyword is present in the text (case-insensitive)
+          text: filter.post?.keywords.map((kw) => Like(`N'%${kw}%'`)),
+        }
       : {}),
     ...(filter.post?.country && filter.post?.country.length > 0
       ? { country: In(filter.post?.country) }

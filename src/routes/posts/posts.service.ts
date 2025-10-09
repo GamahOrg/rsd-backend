@@ -12,6 +12,26 @@ export default fp(async (fastify) => {
     // query
     const filterQuery = generateFilterQuery(filter as Filter);
     const postRepo = AppDataSource.getRepository(Post);
+    console.log(filterQuery);
+    // Build order object based on field type
+    let orderBy: any = { posted_at: "asc" };
+    if (filter?.orderBy) {
+      const { field, direction } = filter.orderBy;
+      // Check if it's a user field
+      if (field === "followers_count") {
+        orderBy = {
+          user: {
+            followers_count: direction || "desc",
+          },
+        };
+      } else {
+        // It's a post field
+        orderBy = {
+          [field]: direction || "desc",
+        };
+      }
+    }
+
     const qb = postRepo.createQueryBuilder("post").setFindOptions({
       where: [
         {
@@ -22,7 +42,7 @@ export default fp(async (fastify) => {
       relations: { user: true },
       skip,
       take,
-      order: { posted_at: "asc" },
+      order: orderBy,
     });
     const [data, totalRecords] = await qb.getManyAndCount();
 
