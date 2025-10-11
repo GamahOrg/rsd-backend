@@ -3,7 +3,7 @@ import { TFilter as DataFilterType } from "../../models/types/comment.type";
 import { In } from "typeorm";
 import { AppDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
-import { Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
+import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 import { TResponse as GetGeneralStatisticsResponse } from "./schemas/statistics/getGeneralStatistics.schema";
 import { TResponse as GetAllDetailedStatisticsResponse } from "./schemas/statistics/getDetailedStatistics.schema";
 import { TResponse as GetSentimentStatisticsResponse } from "./schemas/statistics/getSentimentStatistics.schema";
@@ -12,33 +12,40 @@ export type GroupBy = "day" | "month" | "quarter" | "year" | "hour";
 
 export default fp(async (fastify) => {
   const getGeneralStatistics = async (filter: DataFilterType | undefined) => {
-    const filterQuery = generateFilterQuery(filter as Filter);
     const postRepo = AppDataSource.getRepository(Post);
 
     const [generalCount, postsCount, quotesCount, repliesCount] = await Promise.all([
       postRepo.count({
-        where: {
-          ...filterQuery,
-          post_type: In(["post", "quote", "replied_to"]),
-        },
+        where: generateFilterQuery(
+          filter as Filter,
+          {
+            post_type: In(["post", "quote", "replied_to"]),
+          } as BaseFilter,
+        ),
       }),
       postRepo.count({
-        where: {
-          ...filterQuery,
-          post_type: "post",
-        },
+        where: generateFilterQuery(
+          filter as Filter,
+          {
+            post_type: "post",
+          } as BaseFilter,
+        ),
       }),
       postRepo.count({
-        where: {
-          ...filterQuery,
-          post_type: "quote",
-        },
+        where: generateFilterQuery(
+          filter as Filter,
+          {
+            post_type: "quote",
+          } as BaseFilter,
+        ),
       }),
       postRepo.count({
-        where: {
-          ...filterQuery,
-          post_type: "replied_to",
-        },
+        where: generateFilterQuery(
+          filter as Filter,
+          {
+            post_type: "replied_to",
+          } as BaseFilter,
+        ),
       }),
     ]);
 
@@ -117,16 +124,17 @@ export default fp(async (fastify) => {
     groupBy: GroupBy,
     filter: DataFilterType | undefined,
   ) => {
-    const filterQuery = generateFilterQuery(filter as Filter);
-    const postRepo = AppDataSource.getRepository(Post);
-
     // normalize post types
     const postTypes = type === "general" ? In(["post", "quote", "replied_to"]) : type;
 
-    const baseWhere = {
-      ...filterQuery,
-      post_type: postTypes,
-    };
+    const filterQuery = generateFilterQuery(
+      filter as Filter,
+      {
+        post_type: postTypes,
+      } as BaseFilter,
+    );
+
+    const postRepo = AppDataSource.getRepository(Post);
 
     const metrics = (await postRepo
       .createQueryBuilder("post")
@@ -137,7 +145,7 @@ export default fp(async (fastify) => {
         "COALESCE(SUM(post.bookmark_count), 0) AS total_bookmarks",
         "COALESCE(SUM(post.impression_count), 0) AS total_impressions",
       ])
-      .where(baseWhere)
+      .where(filterQuery)
       .getRawOne()) as {
       total_retweets: number;
       total_likes: number;
@@ -152,7 +160,7 @@ export default fp(async (fastify) => {
       .createQueryBuilder("post")
       .leftJoin("post.user", "user")
       .select([...select, "COUNT(*) AS total"])
-      .where(baseWhere)
+      .where(filterQuery)
       .groupBy(group.join(", "));
 
     // apply stable ASC ordering across all aliases
@@ -170,13 +178,18 @@ export default fp(async (fastify) => {
   };
 
   const getSentimentStatistics = async (filter?: DataFilterType) => {
-    const postRepo = AppDataSource.getRepository(Post);
-    const filterQuery = generateFilterQuery(filter as Filter);
-
     const sentiments = ["positive", "negative", "neutral"] as const;
 
+    const postRepo = AppDataSource.getRepository(Post);
+
     const counts = await Promise.all(
-      sentiments.map((sentiment) => postRepo.count({ where: { sentiment, ...filterQuery } })),
+      sentiments.map((sentiment) =>
+        postRepo.count({
+          where: generateFilterQuery(filter as Filter, {
+            sentiment: sentiment,
+          }),
+        }),
+      ),
     );
 
     const [positive, negative, neutral] = counts;

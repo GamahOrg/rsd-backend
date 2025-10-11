@@ -4,15 +4,19 @@ import { TResponse as GetAllRepliesResponse } from "./schemas/getReplies.schema"
 import { AppDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
 import { In } from "typeorm";
-import { Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
+import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 import { TResponse as GetPostResponse } from "./schemas/getPost.schema";
 import { TFilter as dataFilterType } from "../../models/types/comment.type";
 export default fp(async (fastify) => {
   const getAllPosts = async (skip: number, take: number, filter: dataFilterType | undefined) => {
     // query
-    const filterQuery = generateFilterQuery(filter as Filter);
+    const whereClause = generateFilterQuery(
+      filter as Filter,
+      {
+        post_type: In(["post", "quote", "replied_to"]),
+      } as BaseFilter,
+    );
     const postRepo = AppDataSource.getRepository(Post);
-    console.log(filterQuery);
     // Build order object based on field type
     let orderBy: any = { posted_at: "asc" };
     if (filter?.orderBy) {
@@ -33,17 +37,24 @@ export default fp(async (fastify) => {
     }
 
     const qb = postRepo.createQueryBuilder("post").setFindOptions({
-      where: [
-        {
-          post_type: In(["post", "quote", "replied_to"]),
-          ...filterQuery,
-        },
-      ],
+      where: whereClause,
       relations: { user: true },
       skip,
       take,
       order: orderBy,
     });
+    const [query, params] = qb.getQueryAndParameters();
+
+    // interpolate for easier reading
+    const finalQuery = params.reduce((q, p) => q.replace(/@\d+/, formatParam(p.value)), query);
+
+    function formatParam(val: Date | string) {
+      if (val instanceof Date) return `'${val.toISOString()}'`;
+      if (typeof val === "string") return `${val}`;
+      return val;
+    }
+
+    console.log(finalQuery);
     const [data, totalRecords] = await qb.getManyAndCount();
 
     return { data: data as unknown as GetAllPostsResponse, totalRecords };

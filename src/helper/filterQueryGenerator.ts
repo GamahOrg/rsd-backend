@@ -1,8 +1,12 @@
-import { Between, In, MoreThanOrEqual, LessThanOrEqual, Like } from "typeorm";
+import { Between, In, MoreThanOrEqual, LessThanOrEqual, Like, FindOperator } from "typeorm";
 
 interface DateRange {
   from?: string;
   to?: string;
+}
+
+export interface BaseFilter {
+  [key: string]: string[] | string | FindOperator<string>;
 }
 
 export interface Filter {
@@ -87,9 +91,13 @@ const buildUserFilters = (filter: Filter) => {
   };
 };
 
-export const generateFilterQuery = (filter?: Filter) => {
+export const generateFilterQuery = (filter?: Filter, baseFilter?: BaseFilter) => {
   if (!filter) return {};
-  return {
+
+  const makeTextExpr = (kw: string) => Like(`%${kw}%`);
+
+  const baseWhere = {
+    ...baseFilter,
     ...(filter.post?.posted_at ? buildDateRangeFilter("posted_at", filter.post?.posted_at) : {}),
     ...(filter.post?.sentiment && filter.post?.sentiment.length > 0
       ? { sentiment: In(filter.post?.sentiment) }
@@ -99,12 +107,6 @@ export const generateFilterQuery = (filter?: Filter) => {
       : {}),
     ...(filter.user?.username && filter.user?.username.length > 0
       ? { username: In(filter.user?.username) }
-      : {}),
-    ...(filter.post?.keywords && filter.post?.keywords.length > 0
-      ? {
-          // Match if any keyword is present in the text (case-insensitive)
-          text: filter.post?.keywords.map((kw) => Like(`N'%${kw}%'`)),
-        }
       : {}),
     ...(filter.post?.country && filter.post?.country.length > 0
       ? { country: In(filter.post?.country) }
@@ -116,4 +118,11 @@ export const generateFilterQuery = (filter?: Filter) => {
     ...buildNumberRangeFilter("impression_count", filter.post?.metrics?.impression_count),
     ...buildUserFilters(filter),
   };
+
+  return filter?.post?.keywords?.length
+    ? filter.post.keywords.map((kw: string) => ({
+        ...baseWhere,
+        text: makeTextExpr(kw),
+      }))
+    : [baseWhere];
 };

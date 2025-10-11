@@ -17,7 +17,7 @@ const fastify = Fastify({
 });
 
 // Health check route with database and Redis status
-fastify.get("/health", async (request, reply) => {
+fastify.get("/health", async () => {
   const dbStatus = AppDataSource.isInitialized ? "connected" : "disconnected";
 
   let redisStatus = "disconnected";
