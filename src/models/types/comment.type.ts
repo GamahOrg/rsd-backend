@@ -3,7 +3,7 @@ import { IDateTimeRange } from "../../helper/common";
 
 export const IFilter = Type.Object({
   post: Type.Object({
-    posted_at: Type.Optional(IDateTimeRange),
+    posted_at: IDateTimeRange,
     post_type: Type.Optional(Type.Array(Type.String())),
     sentiment: Type.Optional(Type.Array(Type.String())),
     keywords: Type.Optional(Type.Array(Type.String())),

@@ -13,7 +13,7 @@ const IQuery = Type.Object({
 type TQuery = Static<typeof IQuery>;
 
 const IBody = Type.Object({
-  filter: Type.Optional(IFilter),
+  filter: IFilter,
 });
 type TBody = Static<typeof IBody>;
 

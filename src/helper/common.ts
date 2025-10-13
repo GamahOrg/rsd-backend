@@ -14,6 +14,6 @@ export const IPagination = Type.Object({
 export type IPagination = Static<typeof IPagination>;
 
 export const IDateTimeRange = Type.Object({
-  from: Type.Optional(Type.String({ format: "date-time" })),
-  to: Type.Optional(Type.String({ format: "date-time" })),
+  from: Type.String({ format: "date-time" }),
+  to: Type.String({ format: "date-time" }),
 });

@@ -3,7 +3,7 @@ import { IError, TError, IPagination } from "../../../helper/common";
 import { IFilter as IFilterType } from "../../../models/types/comment.type";
 
 const IBody = Type.Object({
-  filter: Type.Optional(IFilterType),
+  filter: IFilterType,
 });
 type TBody = Static<typeof IBody>;
 
