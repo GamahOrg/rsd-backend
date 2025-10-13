@@ -15,7 +15,7 @@ const post: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
       const { filter } = request.body;
       const { data, totalRecords } = await fastify.postService.getAllPosts(filter, skip, take);
       setPaginationHeaders(response, totalRecords, take);
-      return { data, totalRecords };
+      return data;
     },
   });
 
