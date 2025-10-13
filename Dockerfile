@@ -1,34 +1,32 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-COPY package*.json ./
+# Use Corepack to pin pnpm
+RUN corepack enable && corepack prepare pnpm@9 --activate
 
-RUN npm ci
+# Only copy what's needed for deps
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
-# Copy source and tsconfig
+# Build
 COPY tsconfig*.json ./
-COPY src/ ./src
+COPY src ./src
+RUN pnpm build
 
-# Build TypeScript -> dist
-RUN npm run build
+# Prune dev deps
+RUN pnpm prune --prod
 
-# Prune dev deps to production-only in the builder (keeps one node_modules tree)
-RUN npm prune --omit=dev
 
 FROM node:20-alpine AS production
 WORKDIR /app
-
-# Copy the already-pruned node_modules and built files
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/dist ./dist
-
-# Never bake secrets; set at runtime instead
 ENV NODE_ENV=production
-ENV PORT=4000
+ENV PORT=3000
+
+# Copy as non-root without extra chown layer
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/package.json ./
+COPY --from=builder --chown=node:node /app/dist ./dist
 
 USER node
-
-EXPOSE 4000
-
+EXPOSE 3000
 CMD ["node", "dist/server.js"]

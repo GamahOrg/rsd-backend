@@ -1,0 +1,126 @@
+stages:
+  - prettier
+  - cached_build
+  - build
+  - deploy
+
+variables:
+  # For docker image build
+  APPLICATION_NAME: rsd_backend
+  IMAGE_TAG_NAME: ${PRE_IMAGE_TAG_NAME}/${APPLICATION_NAME}:${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_BRANCH}
+  # For gitops deployment
+  FILE_PATH: apps/rsd/backend/environments/${ENVIRONMENT}/deployment.yaml
+  TAG: "$IMAGE_TAG_NAME"
+  TAG_PATH: .spec.template.spec.containers[0].image
+
+prettier-fix:
+  stage: prettier
+  image: node:22
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "staging"'
+    - if: '$CI_COMMIT_BRANCH == "development"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  before_script:
+    - npm install -g pnpm
+    - npm install --global corepack@latest
+    - corepack enable
+    - corepack prepare pnpm@latest-10 --activate
+    - pnpm config set store-dir .pnpm-store
+  script: |
+    pnpm install
+    pnpm prettier --write src
+
+    if ! git diff --quiet; then
+      git config user.name "CI Bot"
+      git config user.email "ci-bot@example.com"
+      git add .
+      git commit -m "chore: auto-fix formatting with Prettier [skip ci]"
+
+      git remote remove ci || true
+      git remote add ci "https://$CI_COMMITTER_USER_AND_TOKEN@gitlab.rega.gov.sa/${CI_PROJECT_PATH}.git"
+
+      git push ci HEAD:${CI_COMMIT_REF_NAME}
+
+    else
+      echo "No Prettier changes"
+    fi
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+
+cached_build:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "staging"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "development"'
+      when: always
+    - when: never
+  image:
+    name: harbor.rega.gov.sa/docker-hub-rega/node:22
+    entrypoint: [""]
+  stage: cached_build
+  before_script:
+    - npm install -g pnpm
+    - npm install --global corepack@latest
+    - corepack enable
+    - corepack prepare pnpm@latest-10 --activate
+    - pnpm config set store-dir .pnpm-store
+  script: |
+    pnpm install
+    # Prettier is already fixed in previous job, just verify
+    pnpm prettier src -c
+
+    echo "Building Fastify backend application..."
+    export BUILD_TIMESTAMP=$(date -u +"%Y/%m/%d")
+    echo "Build timestamp: $BUILD_TIMESTAMP"
+    
+    # Build TypeScript to JavaScript
+    pnpm build
+
+    echo "Build completed successfully"
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .pnpm-store
+      - node_modules/
+
+  artifacts:
+    name: "${CI_PROJECT_NAME}-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - dist/
+      - package*.json
+      - node_modules/
+    expire_in: 1 hour
+
+include:
+  - project: "rega-softwares/rega-devops"
+    file: "pipelines/yaml-updater.yaml"
+    rules:
+      - if: '$CI_COMMIT_BRANCH == "main"'
+        when: always
+      - if: '$CI_COMMIT_BRANCH == "staging"'
+        when: always
+      - if: '$CI_COMMIT_BRANCH == "development"'
+        when: always
+      - when: never
+  - project: "rega-softwares/rega-devops"
+    file: "pipelines/Kaniko.gitlab-ci.yml"
+    rules:
+      - if: '$CI_COMMIT_BRANCH == "main"'
+        when: always
+      - if: '$CI_COMMIT_BRANCH == "staging"'
+        when: always
+      - if: '$CI_COMMIT_BRANCH == "development"'
+        when: always
+      - when: never
+    needs:
+      - job: cached_build
+        artifacts: true

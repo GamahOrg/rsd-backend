@@ -1,0 +1,14 @@
+# Dependencies & build output
+node_modules
+dist
+.pnp*
+.pnpm-store
+npm-debug.log*
+
+.git
+.gitignore
+
+# Env & secrets
+.env
+.env.*
+!.env.example
