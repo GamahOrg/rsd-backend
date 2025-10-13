@@ -30,6 +30,6 @@ export const initializeDatabase = async (): Promise<void> => {
     console.log("Database connection has been initialized successfully.");
   } catch (error) {
     console.error("Error during Data Source initialization:", error);
-    // throw error;
+    throw error;
   }
 };
