@@ -7,7 +7,7 @@ stages:
 variables:
   # For docker image build
   APPLICATION_NAME: rsd_backend
-  IMAGE_TAG_NAME: ${PRE_IMAGE_TAG_NAME}/${APPLICATION_NAME}:${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_BRANCH}
+  IMAGE_TAG_NAME: ${PRE_IMAGE_TAG_NAME}/idm-rsd/${APPLICATION_NAME}:${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_BRANCH}
   # For gitops deployment
   FILE_PATH: apps/rsd/backend/environments/${ENVIRONMENT}/deployment.yaml
   TAG: "$IMAGE_TAG_NAME"
