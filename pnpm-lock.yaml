@@ -33,7 +33,7 @@ importers:
         specifier: ^0.34.41
         version: 0.34.41
       dotenv:
-        specifier: ^16.3.1
+        specifier: ^16.6.1
         version: 16.6.1
       fastify:
         specifier: ^4.24.3
