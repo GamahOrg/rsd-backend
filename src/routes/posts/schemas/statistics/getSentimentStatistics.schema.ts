@@ -24,7 +24,7 @@ export type getSentimentStatisticsSchemaType = {
 export const getSentimentStatisticsSchema = {
   tags: ["post", "statistics"],
   deprecated: false,
-  summary: "get sentiment statistics",
+  summary: "get sentiment statistics.",
   description: "get sentiment statistics",
   body: IBody,
   response: {
