@@ -25,9 +25,11 @@ fastify.get("/health", async () => {
     if (fastify.redis && fastify.redis.status === "ready") {
       await fastify.redis.ping();
       redisStatus = "connected";
+      console.log("✅ Redis connected successfully");
     }
-  } catch (error) {
+  } catch (error: any) {
     redisStatus = "error";
+    console.error("❌ Redis connection error:", error);
   }
 
   return {

@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyPluginOptions } from "fastify";
+import { FastifyInstance } from "fastify";
 import fp from "fastify-plugin";
 import Redis from "ioredis";
 
@@ -8,7 +8,7 @@ declare module "fastify" {
   }
 }
 
-async function redisPlugin(fastify: FastifyInstance, options: FastifyPluginOptions) {
+async function redisPlugin(fastify: FastifyInstance) {
   const redis = new Redis({
     host: process.env.REDIS_HOST || "localhost",
     port: parseInt(process.env.REDIS_PORT || "6379"),
@@ -54,7 +54,7 @@ async function redisPlugin(fastify: FastifyInstance, options: FastifyPluginOptio
   fastify.decorate("redis", redis);
 
   // Graceful shutdown
-  fastify.addHook("onClose", async (instance) => {
+  fastify.addHook("onClose", async () => {
     await redis.quit();
     console.log("✅ Redis connection closed gracefully");
   });

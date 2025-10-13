@@ -86,7 +86,9 @@ const buildUserFilters = (filter: Filter) => {
     user: {
       ...buildNumberRangeFilter("followers_count", filter.user?.metrics?.followers_count),
       ...(hasVerified ? { is_verified: filter.user?.is_verified } : {}),
-      ...(hasVerifiedType ? { verified_type: In(filter.user?.verified_type!) } : {}),
+      ...(hasVerifiedType && filter.user?.verified_type
+        ? { verified_type: In(filter.user.verified_type) }
+        : {}),
     },
   };
 };

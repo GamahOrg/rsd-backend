@@ -1,6 +1,6 @@
-import { FastifyInstance, FastifyPluginOptions } from "fastify";
+import { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 
-export async function corsPlugin(fastify: FastifyInstance, options: FastifyPluginOptions) {
-  await fastify.register(cors, {});
+export async function corsPlugin(fastify: FastifyInstance) {
+  await fastify.register(cors);
 }

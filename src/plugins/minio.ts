@@ -30,8 +30,8 @@ const minioPlugin: FastifyPluginAsync = fp(async (fastify) => {
       fastify.log.info(`Bucket ${bucket} created in "us-east-1"`);
     }
     fastify.log.info("Minio is up");
-  } catch (error) {
-    fastify.log.error("Minio is not connected");
+  } catch (error: any) {
+    fastify.log.error("Minio is not connected", error);
   }
 });
 
