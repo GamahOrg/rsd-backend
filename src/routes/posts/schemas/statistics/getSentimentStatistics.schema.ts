@@ -25,7 +25,7 @@ export const getSentimentStatisticsSchema = {
   tags: ["post", "statistics"],
   deprecated: false,
   summary: "get sentiment statistics.",
-  description: "get sentiment statistics",
+  description: "get sentiment statistics.",
   body: IBody,
   response: {
     200: IResponse,
