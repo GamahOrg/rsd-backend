@@ -124,7 +124,7 @@ export default fp(async (fastify) => {
     groupBy: GroupBy,
     filter: DataFilterType | undefined,
   ) => {
-    // normalize post types
+    // normalize post types.
     const postTypes = type === "general" ? In(["post", "quote", "replied_to"]) : type;
 
     const filterQuery = generateFilterQuery(
