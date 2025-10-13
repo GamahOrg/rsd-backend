@@ -10,12 +10,12 @@ variables:
   PRE_IMAGE_TAG_NAME: ${HARBOR_HOST}/${HARBOR_PROJECT}/${CI_PROJECT_NAME}
   FORCE_COLOR: 1
   KANIKO_CACHE: false
-  
+
   # For docker image build
   APPLICATION_NAME: idm_rsd_backend
   IMAGE_TAG_NAME: ${PRE_IMAGE_TAG_NAME}/rsd/backend/${APPLICATION_NAME}:${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_BRANCH}
   # For gitops deployment
-  FILE_PATH: apps/rsd/backend/environments/${ENVIRONMENT}/deployment.yaml
+  FILE_PATH: apps/idm-rsd/backend/environments/${ENVIRONMENT}/deployment.yaml
   TAG: "$IMAGE_TAG_NAME"
   TAG_PATH: .spec.template.spec.containers[0].image
 
