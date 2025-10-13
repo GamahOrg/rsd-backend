@@ -8,7 +8,7 @@ import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQuer
 import { TResponse as GetPostResponse } from "./schemas/getPost.schema";
 import { TFilter as dataFilterType } from "../../models/types/comment.type";
 export default fp(async (fastify) => {
-  const getAllPosts = async (skip: number, take: number, filter: dataFilterType | undefined) => {
+  const getAllPosts = async (filter: dataFilterType | undefined, skip: number, take: number) => {
     // query
     const whereClause = generateFilterQuery(
       filter as Filter,
@@ -43,18 +43,6 @@ export default fp(async (fastify) => {
       take,
       order: orderBy,
     });
-    const [query, params] = qb.getQueryAndParameters();
-
-    // interpolate for easier reading
-    const finalQuery = params.reduce((q, p) => q.replace(/@\d+/, formatParam(p.value)), query);
-
-    function formatParam(val: Date | string) {
-      if (val instanceof Date) return `'${val.toISOString()}'`;
-      if (typeof val === "string") return `${val}`;
-      return val;
-    }
-
-    console.log(finalQuery);
     const [data, totalRecords] = await qb.getManyAndCount();
 
     return { data: data as unknown as GetAllPostsResponse, totalRecords };
@@ -102,9 +90,9 @@ declare module "fastify" {
   interface FastifyInstance {
     postService: {
       getAllPosts: (
+        filter: dataFilterType | undefined,
         skip: number,
         take: number,
-        filter: dataFilterType | undefined,
       ) => Promise<{ data: GetAllPostsResponse; totalRecords: number }>;
       getPost: (post_id: string) => Promise<{ data: GetPostResponse }>;
       getAllReplies: (

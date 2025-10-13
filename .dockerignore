@@ -7,8 +7,3 @@ npm-debug.log*
 
 .git
 .gitignore
-
-# Env & secrets
-.env
-.env.*
-!.env.example
