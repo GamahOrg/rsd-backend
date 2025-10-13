@@ -13,7 +13,7 @@ const sourceDataSource = new DataSource({
   port: parseInt(process.env.DB_PORT || "1433"),
   username: process.env.DB_USERNAME || "sa",
   password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_DATABASE || "testdb",
+  database: process.env.DB_NAME || "testdb",
   synchronize: false,
   logging: false,
   entities: [join(__dirname, "..", "src/database/entity", "*.{ts,js}")],
@@ -392,7 +392,7 @@ async function verifyMigration() {
 async function main() {
   console.log("🚀 Starting data migration...");
   console.log("════════════════════════════════════════");
-  console.log("Source DB:", process.env.DB_HOST, "/", process.env.DB_DATABASE);
+  console.log("Source DB:", process.env.DB_HOST, "/", process.env.DB_NAME);
   console.log("Target DB: rega-dev-db.database.windows.net / X_DATA");
   console.log("════════════════════════════════════════\n");
 
