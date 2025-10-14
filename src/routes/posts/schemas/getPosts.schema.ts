@@ -19,6 +19,7 @@ const IResponse = Type.Array(
     reply_count: Type.Integer(),
     bookmark_count: Type.Integer(),
     impression_count: Type.Integer(),
+    media_count: Type.Integer(),
     post_type: Type.String(),
     user: Type.Optional(
       Type.Object({

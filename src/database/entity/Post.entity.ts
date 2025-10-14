@@ -66,6 +66,9 @@ export class Post extends BaseEntity {
   @Column({ type: "int", nullable: true })
   impression_count?: number;
 
+  @Column({ type: "int", nullable: true })
+  media_count?: number;
+
   @Column({ type: "varchar", length: 50, nullable: true })
   post_type?: string;
 

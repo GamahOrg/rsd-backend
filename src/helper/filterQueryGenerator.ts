@@ -31,6 +31,7 @@ export interface Filter {
       reply_count?: { min?: number; max?: number };
       bookmark_count?: { min?: number; max?: number };
       impression_count?: { min?: number; max?: number };
+      media_count?: { min?: number; max?: number };
     };
   };
   user?: {
@@ -143,6 +144,7 @@ export const generateFilterQuery = (filter?: Filter, baseFilter?: BaseFilter) =>
     ...buildNumberRangeFilter("reply_count", filter.post?.metrics?.reply_count),
     ...buildNumberRangeFilter("bookmark_count", filter.post?.metrics?.bookmark_count),
     ...buildNumberRangeFilter("impression_count", filter.post?.metrics?.impression_count),
+    ...buildNumberRangeFilter("media_count", filter.post?.metrics?.media_count),
     ...buildUserFilters(filter),
   };
 

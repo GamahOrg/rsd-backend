@@ -86,6 +86,7 @@ create table post
     bookmark_count      int,
     quote_count         int,
     impression_count    int,
+    media_count         int,
     post_type           varchar(50),
     referenced_tweet_id bigint,
     reply_to_user_id    bigint

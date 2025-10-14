@@ -39,6 +39,12 @@ export const IFilter = Type.Object({
           max: Type.Optional(Type.Number()),
         }),
       ),
+      media_count: Type.Optional(
+        Type.Object({
+          min: Type.Optional(Type.Number()),
+          max: Type.Optional(Type.Number()),
+        }),
+      ),
     }),
   }),
   user: Type.Object({
