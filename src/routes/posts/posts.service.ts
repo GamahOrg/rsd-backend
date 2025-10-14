@@ -38,7 +38,7 @@ export default fp(async (fastify) => {
 
     const qb = postRepo.createQueryBuilder("post").setFindOptions({
       where: whereClause,
-      relations: { user: true },
+      relations: { user: true, referenced_post: { user: true } },
       skip,
       take,
       order: orderBy,
@@ -73,7 +73,7 @@ export default fp(async (fastify) => {
     const postRepo = AppDataSource.getRepository(Post);
     const data = await postRepo.findOne({
       where: { post_id },
-      relations: { user: true, country: true },
+      relations: { user: true, country: true, referenced_post: { user: true } },
     });
     return { data: data as unknown as GetPostResponse };
   };
