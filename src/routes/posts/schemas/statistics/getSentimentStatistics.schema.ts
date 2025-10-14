@@ -11,6 +11,7 @@ const IResponse = Type.Object({
   positive: Type.Number(),
   negative: Type.Number(),
   neutral: Type.Number(),
+  none: Type.Number(),
 });
 
 export type TResponse = Static<typeof IResponse>;
