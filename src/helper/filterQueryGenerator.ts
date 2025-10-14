@@ -25,7 +25,7 @@ export interface Filter {
     };
   };
   user?: {
-    username?: string[];
+    user_ids?: string[];
     is_verified?: boolean;
     verified_type?: string[];
     metrics?: {
@@ -107,8 +107,8 @@ export const generateFilterQuery = (filter?: Filter, baseFilter?: BaseFilter) =>
     ...(filter.post?.post_type && filter.post?.post_type.length > 0
       ? { post_type: In(filter.post?.post_type) }
       : {}),
-    ...(filter.user?.username && filter.user?.username.length > 0
-      ? { username: In(filter.user?.username) }
+    ...(filter.user?.user_ids && filter.user?.user_ids.length > 0
+      ? { user_id: In(filter.user?.user_ids) }
       : {}),
     ...(filter.post?.country && filter.post?.country.length > 0
       ? { country: In(filter.post?.country) }
