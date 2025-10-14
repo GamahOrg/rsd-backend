@@ -1,5 +1,5 @@
 import fp from "fastify-plugin";
-import { TResponse as GetUsersResponse } from "./schemas/getUsers.schema";
+import { TResponse as GetUsersResponse } from "./schemas/getUsernames.schema";
 import { TResponse as GetUserResponse } from "./schemas/getUser.schema";
 import { AppDataSource } from "../../config/database";
 import { User } from "../../database/entity/User.entity";

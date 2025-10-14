@@ -1,14 +1,14 @@
 import { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { getUsersSchema, usersSchemaType } from "./schemas/getUsers.schema";
+import { getUsernamesListSchema, getUsernamesListSchemaType } from "./schemas/getUsernames.schema";
 import { setPaginationHeaders } from "../../helper/setPaginationHeaders";
-import { getUserSchema, userSchemaType } from "./schemas/getUser.schema";
+import { getUserInfoSchema, getUserInfoSchemaType } from "./schemas/getUser.schema";
 
 const user: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
-  // api to get all users
-  fastify.route<usersSchemaType>({
+  // api to get users usernames list
+  fastify.route<getUsernamesListSchemaType>({
     method: "GET",
     url: "/usernames",
-    schema: getUsersSchema,
+    schema: getUsernamesListSchema,
     handler: async (request, response) => {
       const { skip, take } = request.pagination!;
       const { search } = request.query as { search: string };
@@ -22,11 +22,22 @@ const user: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     },
   });
 
+  // // api to get all users with statistics
+  // fastify.route<userSchemaType>({
+  //   method: "POST",
+  //   url: "/",
+  //   schema: getUsernamesListSchemaType,
+  //   handler: async (request) => {
+  //     const { data } = await fastify.userService.getUsers(user_id);
+  //     return data;
+  //   },
+  // });
+
   // api to get specific user
-  fastify.route<userSchemaType>({
+  fastify.route<getUserInfoSchemaType>({
     method: "GET",
     url: "/:user_id",
-    schema: getUserSchema,
+    schema: getUserInfoSchema,
     handler: async (request) => {
       const { user_id } = request.params;
       const { data } = await fastify.userService.getUser(user_id);

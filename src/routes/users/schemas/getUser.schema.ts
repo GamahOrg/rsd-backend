@@ -27,13 +27,13 @@ const IResponse = Type.Object({
 
 export type TResponse = Static<typeof IResponse>;
 
-export type userSchemaType = {
+export type getUserInfoSchemaType = {
   Params: TParams;
   Response: TResponse;
   Error: TError;
 };
 
-export const getUserSchema = {
+export const getUserInfoSchema = {
   tags: ["user", "info"],
   deprecated: false,
   summary: "get user info by user id",
