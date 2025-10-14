@@ -3,7 +3,7 @@ import { TResponse as GetAllPostsResponse } from "./schemas/getPosts.schema";
 import { TResponse as GetAllRepliesResponse } from "./schemas/getReplies.schema";
 import { AppDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
-import { In } from "typeorm";
+import { In, Not, IsNull, And } from "typeorm";
 import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 import { TResponse as GetPostResponse } from "./schemas/getPost.schema";
 import { TFilter as dataFilterType } from "../../models/types/comment.type";
@@ -14,6 +14,7 @@ export default fp(async (fastify) => {
       filter as Filter,
       {
         post_type: In(["post", "quote", "replied_to"]),
+        text: And(Not(IsNull()), Not("")),
       } as BaseFilter,
     );
     const postRepo = AppDataSource.getRepository(Post);
@@ -56,6 +57,7 @@ export default fp(async (fastify) => {
         {
           post_type: "replied_to",
           conversation_id: post_id,
+          text: And(Not(IsNull()), Not("")),
         },
       ],
       relations: { user: true },
@@ -72,7 +74,10 @@ export default fp(async (fastify) => {
   const getPost = async (post_id: string) => {
     const postRepo = AppDataSource.getRepository(Post);
     const data = await postRepo.findOne({
-      where: { post_id },
+      where: {
+        post_id,
+        text: And(Not(IsNull()), Not("")),
+      },
       relations: { user: true, country: true, referenced_post: { user: true } },
     });
     return { data: data as unknown as GetPostResponse };
