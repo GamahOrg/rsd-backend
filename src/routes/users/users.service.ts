@@ -1,5 +1,6 @@
 import fp from "fastify-plugin";
 import { TResponse as GetUsersResponse } from "./schemas/getUsers.schema";
+import { TResponse as GetUserResponse } from "./schemas/getUser.schema";
 import { AppDataSource } from "../../config/database";
 import { User } from "../../database/entity/User.entity";
 
@@ -20,9 +21,16 @@ export default fp(async (fastify) => {
     return { data: data as unknown as GetUsersResponse, totalRecords };
   };
 
+  const getUser = async (user_id: string) => {
+    const userRepo = AppDataSource.getRepository(User);
+    const data = await userRepo.findOne({ where: { user_id } });
+    return { data: data as unknown as GetUserResponse };
+  };
+
   // Decorate the fastify instance with the userService
   fastify.decorate("userService", {
     getUsernamesByUsername,
+    getUser,
   });
 });
 
@@ -34,6 +42,7 @@ declare module "fastify" {
         skip: number,
         take: number,
       ) => Promise<{ data: GetUsersResponse; totalRecords: number }>;
+      getUser: (user_id: string) => Promise<{ data: GetUserResponse }>;
     };
   }
 }

@@ -23,6 +23,7 @@ const IResponse = Type.Array(
     user: Type.Optional(
       Type.Object({
         id: Type.String(),
+        user_id: Type.String(),
         profile_image_url: Type.String(),
         name: Type.String(),
         username: Type.String(),
@@ -39,6 +40,7 @@ const IResponse = Type.Array(
         user: Type.Optional(
           Type.Object({
             id: Type.String(),
+            user_id: Type.String(),
             profile_image_url: Type.String(),
             name: Type.String(),
             username: Type.String(),
