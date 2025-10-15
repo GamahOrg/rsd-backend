@@ -25,7 +25,7 @@ export type getKeywordsListSchemaType = {
 };
 
 export const getKeywordsListSchema = {
-  tags: ["keyword", "list"],
+  tags: ["keyword"],
   deprecated: false,
   summary: "get keywords",
   description: "get keywords",

@@ -25,7 +25,7 @@ export type getUsernamesListSchemaType = {
 };
 
 export const getUsernamesListSchema = {
-  tags: ["user", "list"],
+  tags: ["user"],
   deprecated: false,
   summary: "get usernames",
   description: "get usernames",

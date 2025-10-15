@@ -34,7 +34,7 @@ export type getUserInfoSchemaType = {
 };
 
 export const getUserInfoSchema = {
-  tags: ["user", "info"],
+  tags: ["user"],
   deprecated: false,
   summary: "get user info by user id",
   description: "get user info by user id",
