@@ -23,7 +23,7 @@ export type getSentimentStatisticsSchemaType = {
 };
 
 export const getSentimentStatisticsSchema = {
-  tags: ["post", "statistics"],
+  tags: ["post"],
   deprecated: false,
   summary: "get sentiment statistics.",
   description: "get sentiment statistics.",

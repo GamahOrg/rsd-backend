@@ -47,7 +47,7 @@ export type repliesSchemaType = {
 };
 
 export const getRepliesSchema = {
-  tags: ["reply"],
+  tags: ["post"],
   deprecated: false,
   summary: "get all replies",
   description: "get all replies",
