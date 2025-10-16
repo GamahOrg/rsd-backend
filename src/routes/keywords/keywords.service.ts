@@ -1,5 +1,6 @@
 import fp from "fastify-plugin";
 import { TResponse as GetKeywordsResponse } from "./schemas/getKeywords.schema";
+import { TResponse as GetKeywordsStatisticsResponse } from "./schemas/getKeywordsStatistics.schema";
 import { AppDataSource } from "../../config/database";
 import { Keyword } from "../../database/entity/Keyword.entity";
 
@@ -20,9 +21,21 @@ export default fp(async (fastify) => {
     return { data: data as unknown as GetKeywordsResponse, totalRecords };
   };
 
+  const getKeywordsStatistics = async (search: string, skip: number, take: number) => {
+    const keywordRepo = AppDataSource.getRepository(Keyword);
+    const qb = keywordRepo.createQueryBuilder("keyword").select("*");
+    if (search) {
+      qb.where("keyword.keyword LIKE :search", { search: `${search}%` });
+    }
+    const totalRecords = await qb.getCount();
+    const data = await qb.skip(skip).take(take).getRawMany();
+    return { data: data as unknown as GetKeywordsStatisticsResponse, totalRecords };
+  };
+
   // Decorate the fastify instance with the keywordService
   fastify.decorate("keywordService", {
     getKeywordsByKeyword,
+    getKeywordsStatistics,
   });
 });
 
@@ -34,6 +47,11 @@ declare module "fastify" {
         skip: number,
         take: number,
       ) => Promise<{ data: GetKeywordsResponse; totalRecords: number }>;
+      getKeywordsStatistics: (
+        search: string,
+        skip: number,
+        take: number,
+      ) => Promise<{ data: GetKeywordsStatisticsResponse; totalRecords: number }>;
     };
   }
 }
