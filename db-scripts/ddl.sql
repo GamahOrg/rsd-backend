@@ -8,34 +8,28 @@ go
 
 create table countries_lookup
 (
-    id           int           not null
+    id           bigint identity
         primary key,
-    english_name nvarchar(100) not null,
-    arabic_name  nvarchar(100) not null,
-    iso3         nvarchar(3)   not null,
-    iso2         nvarchar(2)   not null
+    english_name nvarchar(255) not null,
+    arabic_name  nvarchar(255) not null,
+    iso3         nvarchar(3),
+    iso2         nvarchar(2)
 )
 go
 
-create table post_json
+
+create table keyword_post_counts
 (
-    id              bigint identity
+    id                   int identity
         primary key,
-    conversation_id bigint,
-    post_id         bigint,
-    post_json       nvarchar(max),
-    posted_at       datetime,
-    is_processed    bit,
-    synced_at       datetime
+    keyword              nvarchar(400) not null,
+    post_count           bigint        not null,
+    last_refreshed       datetime2     not null,
+    positive_post_count  bigint        not null,
+    negative_post_count  bigint        not null,
+    neutral_post_count   bigint        not null,
+    total_impression     bigint        not null
 )
-go
-
-create index idx_postjson_processed
-    on post_json (is_processed)
-go
-
-create index idx_postjson_post_id
-    on post_json (post_id)
 go
 
 create table [user]
@@ -46,7 +40,7 @@ create table [user]
         unique,
     username          varchar(255),
     name              nvarchar(255),
-    description       nvarchar(max),
+    description       nvarchar(255),
     profile_image_url varchar(max),
     followers_count   int,
     following_count   int,
@@ -146,5 +140,15 @@ go
 
 create index IX_user_user_id
     on [user] (user_id)
+go
+
+-- Create view for post statistics summary
+create view postStatisticsSummary
+as
+select count(*)                                             as total_posts,
+       sum(case when sentiment = 'positive' then 1 else 0 end) as positive_posts,
+       sum(case when sentiment = 'negative' then 1 else 0 end) as negative_posts,
+       sum(case when sentiment = 'neutral' then 1 else 0 end)  as neutral_posts
+from post
 go
 
