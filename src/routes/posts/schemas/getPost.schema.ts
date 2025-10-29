@@ -17,6 +17,7 @@ const IResponse = Type.Object({
   reply_count: Type.Integer(),
   bookmark_count: Type.Integer(),
   impression_count: Type.Integer(),
+  media_count: Type.Integer(),
   post_type: Type.String(),
   country: Type.Optional(
     Type.Object({
@@ -28,11 +29,32 @@ const IResponse = Type.Object({
   user: Type.Optional(
     Type.Object({
       id: Type.String(),
+      user_id: Type.String(),
       profile_image_url: Type.String(),
       name: Type.String(),
       username: Type.String(),
       verified_type: Type.Optional(Type.String()),
       followers_count: Type.Integer(),
+    }),
+  ),
+  referenced_post: Type.Optional(
+    Type.Object({
+      id: Type.String(),
+      conversation_id: Type.String(),
+      post_id: Type.String(),
+      text: Type.String(),
+      user: Type.Optional(
+        Type.Object({
+          id: Type.String(),
+          user_id: Type.String(),
+          profile_image_url: Type.String(),
+          name: Type.String(),
+          username: Type.String(),
+          verified_type: Type.Optional(Type.String()),
+          followers_count: Type.Integer(),
+        }),
+      ),
+      posted_at: Type.String({ format: "date-time" }),
     }),
   ),
   posted_at: Type.String({ format: "date-time" }),

@@ -11,6 +11,7 @@ const IResponse = Type.Object({
   positive: Type.Number(),
   negative: Type.Number(),
   neutral: Type.Number(),
+  none: Type.Number(),
 });
 
 export type TResponse = Static<typeof IResponse>;
@@ -22,10 +23,10 @@ export type getSentimentStatisticsSchemaType = {
 };
 
 export const getSentimentStatisticsSchema = {
-  tags: ["post", "statistics"],
+  tags: ["post"],
   deprecated: false,
   summary: "get sentiment statistics.",
-  description: "get sentiment statistics",
+  description: "get sentiment statistics.",
   body: IBody,
   response: {
     200: IResponse,

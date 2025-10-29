@@ -1,4 +1,13 @@
-import { Between, In, MoreThanOrEqual, LessThanOrEqual, Like, FindOperator } from "typeorm";
+import {
+  Between,
+  In,
+  MoreThanOrEqual,
+  LessThanOrEqual,
+  Like,
+  FindOperator,
+  IsNull,
+  Or,
+} from "typeorm";
 
 interface DateRange {
   from?: string;
@@ -22,10 +31,11 @@ export interface Filter {
       reply_count?: { min?: number; max?: number };
       bookmark_count?: { min?: number; max?: number };
       impression_count?: { min?: number; max?: number };
+      media_count?: { min?: number; max?: number };
     };
   };
   user?: {
-    username?: string[];
+    user_ids?: string[];
     is_verified?: boolean;
     verified_type?: string[];
     metrics?: {
@@ -72,6 +82,24 @@ const buildDateRangeFilter = (field: string, range?: DateRange) => {
   return {};
 };
 
+const buildSentimentFilter = (sentiments?: string[]) => {
+  if (!sentiments || sentiments.length === 0) return {};
+
+  const hasNone = sentiments.includes("none");
+  const otherSentiments = sentiments.filter((s) => s !== "none");
+
+  if (hasNone && otherSentiments.length > 0) {
+    // Include both null values and other sentiments
+    return { sentiment: Or(IsNull(), In(otherSentiments)) };
+  } else if (hasNone) {
+    // Only "none" - include null values only
+    return { sentiment: IsNull() };
+  } else {
+    // No "none" - use regular In operator
+    return { sentiment: In(otherSentiments) };
+  }
+};
+
 const buildUserFilters = (filter: Filter) => {
   const hasFollowersRange = !!(
     filter.user?.metrics?.followers_count &&
@@ -101,14 +129,12 @@ export const generateFilterQuery = (filter?: Filter, baseFilter?: BaseFilter) =>
   const baseWhere = {
     ...baseFilter,
     ...(filter.post?.posted_at ? buildDateRangeFilter("posted_at", filter.post?.posted_at) : {}),
-    ...(filter.post?.sentiment && filter.post?.sentiment.length > 0
-      ? { sentiment: In(filter.post?.sentiment) }
-      : {}),
+    ...buildSentimentFilter(filter.post?.sentiment),
     ...(filter.post?.post_type && filter.post?.post_type.length > 0
       ? { post_type: In(filter.post?.post_type) }
       : {}),
-    ...(filter.user?.username && filter.user?.username.length > 0
-      ? { username: In(filter.user?.username) }
+    ...(filter.user?.user_ids && filter.user?.user_ids.length > 0
+      ? { user_id: In(filter.user?.user_ids) }
       : {}),
     ...(filter.post?.country && filter.post?.country.length > 0
       ? { country: In(filter.post?.country) }
@@ -118,6 +144,7 @@ export const generateFilterQuery = (filter?: Filter, baseFilter?: BaseFilter) =>
     ...buildNumberRangeFilter("reply_count", filter.post?.metrics?.reply_count),
     ...buildNumberRangeFilter("bookmark_count", filter.post?.metrics?.bookmark_count),
     ...buildNumberRangeFilter("impression_count", filter.post?.metrics?.impression_count),
+    ...buildNumberRangeFilter("media_count", filter.post?.metrics?.media_count),
     ...buildUserFilters(filter),
   };
 

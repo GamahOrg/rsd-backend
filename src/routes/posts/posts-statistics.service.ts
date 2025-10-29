@@ -1,6 +1,6 @@
 import fp from "fastify-plugin";
 import { TFilter as DataFilterType } from "../../models/types/comment.type";
-import { In } from "typeorm";
+import { In, IsNull } from "typeorm";
 import { AppDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
 import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
@@ -178,7 +178,7 @@ export default fp(async (fastify) => {
   };
 
   const getSentimentStatistics = async (filter?: DataFilterType) => {
-    const sentiments = ["positive", "negative", "neutral"] as const;
+    const sentiments = ["positive", "negative", "neutral", "none"] as const;
 
     const postRepo = AppDataSource.getRepository(Post);
 
@@ -186,20 +186,21 @@ export default fp(async (fastify) => {
       sentiments.map((sentiment) =>
         postRepo.count({
           where: generateFilterQuery(filter as Filter, {
-            sentiment: sentiment,
+            sentiment: sentiment === "none" ? IsNull() : sentiment,
           }),
         }),
       ),
     );
 
-    const [positive, negative, neutral] = counts;
-    const total = positive + negative + neutral;
+    const [positive, negative, neutral, none] = counts;
+    const total = positive + negative + neutral + none;
 
     return {
       data: {
         positive: toPercentage(positive, total),
         negative: toPercentage(negative, total),
         neutral: toPercentage(neutral, total),
+        none: toPercentage(none, total),
       },
     };
   };
