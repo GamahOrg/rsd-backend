@@ -10,7 +10,7 @@ variables:
   PRE_IMAGE_TAG_NAME: ${HARBOR_HOST}/${HARBOR_PROJECT}
   FORCE_COLOR: 1
   KANIKO_CACHE: false
-  
+
   # For docker image build
   APPLICATION_NAME: idm_rsd_backend
   IMAGE_TAG_NAME: ${PRE_IMAGE_TAG_NAME}/rsd/backend/${APPLICATION_NAME}:${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_BRANCH}

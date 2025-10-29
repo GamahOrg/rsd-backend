@@ -23,7 +23,7 @@ export type getGeneralStatisticsSchemaType = {
 };
 
 export const getGeneralStatisticsSchema = {
-  tags: ["post", "statistics"],
+  tags: ["post"],
   deprecated: false,
   summary: "get general statistics",
   description: "get general statistics",

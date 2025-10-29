@@ -18,13 +18,13 @@ const IResponse = Type.Array(
 
 export type TResponse = Static<typeof IResponse>;
 
-export type usersSchemaType = {
+export type getUsernamesListSchemaType = {
   Querystring: TQuery;
   Response: TResponse;
   Error: TError;
 };
 
-export const getUsersSchema = {
+export const getUsernamesListSchema = {
   tags: ["user"],
   deprecated: false,
   summary: "get usernames",

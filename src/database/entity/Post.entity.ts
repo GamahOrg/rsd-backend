@@ -7,6 +7,7 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
+  OneToOne,
 } from "typeorm";
 import { User } from "./User.entity";
 import { Mentions } from "./Mentions.entity";
@@ -65,6 +66,9 @@ export class Post extends BaseEntity {
   @Column({ type: "int", nullable: true })
   impression_count?: number;
 
+  @Column({ type: "int", nullable: true })
+  media_count?: number;
+
   @Column({ type: "varchar", length: 50, nullable: true })
   post_type?: string;
 
@@ -93,4 +97,8 @@ export class Post extends BaseEntity {
   @ManyToOne(() => Country, (country) => country.english_name, { nullable: true })
   @JoinColumn({ name: "country", referencedColumnName: "english_name" })
   country?: Country;
+
+  @OneToOne(() => Post, (post) => post.post_id, { nullable: true })
+  @JoinColumn({ name: "referenced_tweet_id", referencedColumnName: "post_id" })
+  referenced_post?: Post;
 }

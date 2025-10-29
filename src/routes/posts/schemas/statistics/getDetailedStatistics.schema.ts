@@ -47,7 +47,7 @@ export type getDetailedStatisticsSchemaType = {
 };
 
 export const getDetailedStatisticsSchema = {
-  tags: ["post", "statistics"],
+  tags: ["post"],
   deprecated: false,
   summary: "get detailed statistics",
   description: "get detailed statistics",
