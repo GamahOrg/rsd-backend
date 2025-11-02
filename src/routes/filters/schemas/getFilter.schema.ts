@@ -2,10 +2,10 @@ import { Type, Static } from "@sinclair/typebox";
 import { IError, TError } from "../../../helper/common";
 import { IFilter as IFilterType } from "../../../models/types/comment.type";
 
-const IQuery = Type.Object({
+const IParams = Type.Object({
   id: Type.Number(),
 });
-export type TQuery = Static<typeof IQuery>;
+export type TParams = Static<typeof IParams>;
 
 const IResponse = Type.Object({
   id: Type.Number(),
@@ -19,7 +19,7 @@ const IResponse = Type.Object({
 export type TResponse = Static<typeof IResponse>;
 
 export type getFilterSchemaType = {
-  Querystring: TQuery;
+  Params: TParams;
   Response: TResponse;
   Error: TError;
 };
@@ -29,7 +29,7 @@ export const getFilterSchema = {
   deprecated: false,
   summary: "get specific filter",
   description: "get specific filter",
-  querystring: IQuery,
+  params: IParams,
   response: {
     200: IResponse,
     400: IError,

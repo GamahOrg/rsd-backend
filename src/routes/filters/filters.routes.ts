@@ -3,6 +3,7 @@ import { getFiltersSchema, filtersSchemaType } from "./schemas/getFilters.schema
 import { setPaginationHeaders } from "../../helper/setPaginationHeaders";
 import { createFilterSchema, createFilterSchemaType } from "./schemas/createFilter.schema";
 import { updateFilterSchema, updateFilterSchemaType } from "./schemas/updateFilter.schema";
+import { getFilterSchema, getFilterSchemaType } from "./schemas/getFilter.schema";
 
 const filter: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   // api to get all filters
@@ -45,6 +46,17 @@ const filter: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
         id: Number(id),
         ...filter,
       });
+      return data;
+    },
+  });
+
+  fastify.route<getFilterSchemaType>({
+    method: "GET",
+    url: "/:id",
+    schema: getFilterSchema,
+    handler: async (request) => {
+      const { id } = request.params;
+      const { data } = await fastify.filterService.getFilter(Number(id));
       return data;
     },
   });

@@ -65,10 +65,24 @@ export default fp(async (fastify) => {
     };
   };
 
+  const getFilter = async (id: number) => {
+    const filterRepo = AppDataSource.getRepository(Filter);
+    const data = await filterRepo.findOne({
+      where: { id },
+    });
+    if (!data) {
+      throw fastify.httpErrors.notFound(`Filter with id ${id} not found`);
+    }
+    return {
+      data: { ...data, filter: JSON.parse(data.filter) as TFilter } as unknown as GetFilterResponse,
+    };
+  };
+
   // Decorate the fastify instance with the postService
   fastify.decorate("filterService", {
     getAllFilters,
     createOrUpdateFilter,
+    getFilter,
   });
 });
 
@@ -86,6 +100,7 @@ declare module "fastify" {
         type: string;
         filter: TFilter;
       }) => Promise<{ data: GetFilterResponse }>;
+      getFilter: (id: number) => Promise<{ data: GetFilterResponse }>;
     };
   }
 }
