@@ -2,6 +2,7 @@ import { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { getFiltersSchema, filtersSchemaType } from "./schemas/getFilters.schema";
 import { setPaginationHeaders } from "../../helper/setPaginationHeaders";
 import { createFilterSchema, createFilterSchemaType } from "./schemas/createFilter.schema";
+import { updateFilterSchema, updateFilterSchemaType } from "./schemas/updateFilter.schema";
 
 const filter: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   // api to get all filters
@@ -24,8 +25,26 @@ const filter: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     url: "/",
     schema: createFilterSchema,
     handler: async (request) => {
-      const { name, type, filter } = request.body;
-      const { data } = await fastify.filterService.createFilter(name, type, filter);
+      const filter = request.body;
+      const { data } = await fastify.filterService.createOrUpdateFilter({
+        id: undefined,
+        ...filter,
+      });
+      return data;
+    },
+  });
+
+  fastify.route<updateFilterSchemaType>({
+    method: "PATCH",
+    url: "/:id",
+    schema: updateFilterSchema,
+    handler: async (request) => {
+      const { id } = request.params;
+      const filter = request.body;
+      const { data } = await fastify.filterService.createOrUpdateFilter({
+        id: Number(id),
+        ...filter,
+      });
       return data;
     },
   });
