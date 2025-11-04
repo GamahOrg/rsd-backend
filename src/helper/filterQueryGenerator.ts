@@ -35,7 +35,8 @@ export interface Filter {
     };
   };
   user?: {
-    user_ids?: string[];
+    from?: string[];
+    to?: string[];
     is_verified?: boolean;
     verified_type?: string[];
     metrics?: {
@@ -133,8 +134,11 @@ export const generateFilterQuery = (filter?: Filter, baseFilter?: BaseFilter) =>
     ...(filter.post?.post_type && filter.post?.post_type.length > 0
       ? { post_type: In(filter.post?.post_type) }
       : {}),
-    ...(filter.user?.user_ids && filter.user?.user_ids.length > 0
-      ? { user_id: In(filter.user?.user_ids) }
+    ...(filter.user?.from && filter.user?.from.length > 0
+      ? { user_id: In(filter.user?.from) }
+      : {}),
+    ...(filter.user?.to && filter.user?.to.length > 0
+      ? { reply_to_user_id: In(filter.user?.to) }
       : {}),
     ...(filter.post?.country && filter.post?.country.length > 0
       ? { country: In(filter.post?.country) }
