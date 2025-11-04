@@ -49,6 +49,7 @@ interface MigrationStats {
   mentions: number;
   countries: number;
   keywordPostCounts: number;
+  filters: number;
 }
 
 const stats: MigrationStats = {
@@ -57,13 +58,14 @@ const stats: MigrationStats = {
   mentions: 0,
   countries: 0,
   keywordPostCounts: 0,
+  filters: 0,
 };
 
 async function clearTargetDatabase() {
   console.log("\n🧹 Clearing target database tables...");
 
   // Delete in order respecting foreign key constraints
-  // mentions -> posts -> users -> countries, keyword_post_counts
+  // mentions -> posts -> users -> countries, keyword_post_counts, filters
   try {
     const result = await targetDataSource.query(`DELETE FROM mentions`);
     console.log("✅ Cleared mentions");
@@ -99,6 +101,13 @@ async function clearTargetDatabase() {
     console.log("⚠️  No countries to clear or table doesn't exist");
   }
 
+  try {
+    const result = await targetDataSource.query(`DELETE FROM filter`);
+    console.log("✅ Cleared filters");
+  } catch (error) {
+    console.log("⚠️  No filters to clear or table doesn't exist");
+  }
+
   // Verify tables are empty
   try {
     const counts = await targetDataSource.query(`
@@ -107,7 +116,8 @@ async function clearTargetDatabase() {
         (SELECT COUNT(*) FROM post) as post_count,
         (SELECT COUNT(*) FROM mentions) as mentions_count,
         (SELECT COUNT(*) FROM countries_lookup) as countries_count,
-        (SELECT COUNT(*) FROM keyword_post_counts) as keywords_count
+        (SELECT COUNT(*) FROM keyword_post_counts) as keywords_count,
+        (SELECT COUNT(*) FROM filter) as filters_count
     `);
     const totals = counts[0];
     if (
@@ -115,7 +125,8 @@ async function clearTargetDatabase() {
       totals.post_count > 0 ||
       totals.mentions_count > 0 ||
       totals.countries_count > 0 ||
-      totals.keywords_count > 0
+      totals.keywords_count > 0 ||
+      totals.filters_count > 0
     ) {
       console.log("\n⚠️  WARNING: Some tables still contain data:");
       console.log(`   Users: ${totals.user_count}`);
@@ -123,6 +134,7 @@ async function clearTargetDatabase() {
       console.log(`   Mentions: ${totals.mentions_count}`);
       console.log(`   Countries: ${totals.countries_count}`);
       console.log(`   Keywords: ${totals.keywords_count}`);
+      console.log(`   Filters: ${totals.filters_count}`);
       console.log("   This may cause duplicate key errors during migration.\n");
     }
   } catch (error) {
@@ -602,6 +614,35 @@ async function migrateKeywordPostCounts() {
   console.log(`✅ Keyword_post_counts migration complete: ${stats.keywordPostCounts} records`);
 }
 
+async function migrateFilters() {
+  console.log("\n🔑 Migrating filters table...");
+  const filtersQuery = `SELECT * FROM filter`;
+  const filters = await sourceDataSource.query(filtersQuery);
+  console.log(`Found ${filters.length} filters in source database`);
+  if (filters.length === 0) {
+    console.log("No filters to migrate");
+    return;
+  }
+  // Batch insert filters using bulk VALUES (more efficient)
+  const batchSize = 100;
+  for (let i = 0; i < filters.length; i += batchSize) {
+    const batch = filters.slice(i, i + batchSize);
+    const values = batch.map((filter: any) => `(${filter.id}, ${filter.name}, ${filter.type}, ${filter.filter}, ${filter.created_at}, ${filter.updated_at}, ${filter.deleted_at})`).join(",\n");
+    const insertQuery = `
+      SET IDENTITY_INSERT filter ON;
+      INSERT INTO filter (id, name, type, filter, created_at, updated_at, deleted_at) VALUES ${values};
+      SET IDENTITY_INSERT filter OFF;
+    `;
+    try {
+      await targetDataSource.query(insertQuery);
+      stats.filters += batch.length;
+    } catch (error: any) {
+      throw error;
+    }
+  }
+  console.log(`✅ Filters migration complete: ${stats.filters} filters`);
+}
+
 async function resetIdentityColumns() {
   console.log("\n🔧 Resetting identity columns...");
 
@@ -633,6 +674,7 @@ async function verifyMigration() {
   const keywordPostCountsCount = await targetDataSource.query(
     "SELECT COUNT(*) as count FROM keyword_post_counts",
   );
+  const filtersCount = await targetDataSource.query("SELECT COUNT(*) as count FROM filter");
 
   console.log("\n📊 Migration Summary:");
   console.log("════════════════════════════════════════");
@@ -641,9 +683,10 @@ async function verifyMigration() {
   console.log(`Posts:               ${postCount[0].count}`);
   console.log(`Mentions:            ${mentionsCount[0].count}`);
   console.log(`Keyword Post Counts: ${keywordPostCountsCount[0].count}`);
+  console.log(`Filters:             ${filtersCount[0].count}`);
   console.log("════════════════════════════════════════");
   console.log(
-    `✨ Total migrated: ${stats.countries + stats.users + stats.posts + stats.mentions + stats.keywordPostCounts} records`,
+    `✨ Total migrated: ${stats.countries + stats.users + stats.posts + stats.mentions + stats.keywordPostCounts + stats.filters} records`,
   );
 }
 
@@ -670,6 +713,7 @@ async function main() {
     // Perform migration in order (respecting foreign keys)
     await migrateCountries();
     await migrateKeywordPostCounts();
+    await migrateFilters();
     const userIds = await migrateUsers(100);
     const postIds = await migratePosts(userIds);
     await migrateMentions(postIds, userIds);

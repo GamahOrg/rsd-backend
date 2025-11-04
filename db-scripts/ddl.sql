@@ -152,3 +152,16 @@ select count(*)                                             as total_posts,
 from post
 go
 
+
+create table filter
+(
+    id           bigint identity
+        primary key,
+    name         nvarchar(255) not null,
+    type         varchar(255) not null,
+    filter       nvarchar(max) not null,
+    created_at   datetime not null,
+    updated_at   datetime not null,
+    deleted_at   datetime null
+)
+go
