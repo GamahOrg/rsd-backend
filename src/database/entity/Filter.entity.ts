@@ -19,4 +19,7 @@ export class Filter extends BaseEntity {
 
   @Column({ type: "datetime", nullable: true })
   updated_at?: Date;
+
+  @Column({ type: "datetime", nullable: true })
+  deleted_at?: Date;
 }

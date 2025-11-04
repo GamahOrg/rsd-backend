@@ -1,9 +1,11 @@
 import fp from "fastify-plugin";
+import { IsNull } from "typeorm";
 import { AppDataSource } from "../../config/database";
 import { Filter } from "../../database/entity/Filter.entity";
 import { TFilter } from "../../models/types/comment.type";
 import { TResponse as GetAllFiltersResponse } from "./schemas/getFilters.schema";
 import { TResponse as GetFilterResponse } from "./schemas/getFilter.schema";
+import { TResponse as DeleteFilterResponse } from "./schemas/deleteFilterSchema.schema";
 
 export default fp(async (fastify) => {
   const getAllFilters = async (type: string, skip: number, take: number) => {
@@ -17,6 +19,7 @@ export default fp(async (fastify) => {
       },
       where: {
         type,
+        deleted_at: IsNull(),
       },
       skip,
       take,
@@ -40,6 +43,7 @@ export default fp(async (fastify) => {
       const existingFilter = await filterRepo.findOne({
         where: {
           id: filter.id,
+          deleted_at: IsNull(),
         },
       });
 
@@ -51,11 +55,12 @@ export default fp(async (fastify) => {
       }
 
       // check if the filter name already exists with the same type
-      if(existingFilter.name !== filter.name){
+      if (existingFilter.name !== filter.name) {
         const existingFilterWithSameName = await filterRepo.findOne({
           where: {
             name: filter.name,
             type: filter.type,
+            deleted_at: IsNull(),
           },
         });
         if (existingFilterWithSameName) {
@@ -65,6 +70,7 @@ export default fp(async (fastify) => {
 
       // Update existing filter
       existingFilter.filter = JSON.stringify(filter.filter);
+      existingFilter.updated_at = new Date();
       existingFilter.name = filter.name;
       data = await filterRepo.save(existingFilter);
     } else {
@@ -84,7 +90,7 @@ export default fp(async (fastify) => {
   const getFilter = async (id: number) => {
     const filterRepo = AppDataSource.getRepository(Filter);
     const data = await filterRepo.findOne({
-      where: { id },
+      where: { id, deleted_at: IsNull() },
     });
     if (!data) {
       throw fastify.httpErrors.notFound(`Filter with id ${id} not found`);
@@ -94,11 +100,30 @@ export default fp(async (fastify) => {
     };
   };
 
+  const deleteFilter = async (id: number) => {
+    const filterRepo = AppDataSource.getRepository(Filter);
+    const existingFilter = await filterRepo.findOne({
+      where: { id, deleted_at: IsNull() },
+    });
+    if (!existingFilter) {
+      throw fastify.httpErrors.notFound(`Filter with id ${id} not found`);
+    }
+    existingFilter.deleted_at = new Date();
+    await filterRepo.save(existingFilter);
+    return {
+      data: {
+        success: true,
+        message: `Filter with id ${id} deleted successfully`,
+      } as unknown as DeleteFilterResponse,
+    };
+  };
+
   // Decorate the fastify instance with the postService
   fastify.decorate("filterService", {
     getAllFilters,
     createOrUpdateFilter,
     getFilter,
+    deleteFilter,
   });
 });
 
@@ -117,6 +142,7 @@ declare module "fastify" {
         filter: TFilter;
       }) => Promise<{ data: GetFilterResponse }>;
       getFilter: (id: number) => Promise<{ data: GetFilterResponse }>;
+      deleteFilter: (id: number) => Promise<{ data: DeleteFilterResponse }>;
     };
   }
 }

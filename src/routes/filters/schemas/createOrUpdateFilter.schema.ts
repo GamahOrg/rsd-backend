@@ -3,6 +3,7 @@ import { IError, TError } from "../../../helper/common";
 import { IFilter as IFilterType } from "../../../models/types/comment.type";
 
 const IBody = Type.Object({
+  id: Type.Optional(Type.Number()),
   name: Type.String(),
   type: Type.String(),
   filter: IFilterType,
@@ -10,16 +11,16 @@ const IBody = Type.Object({
 
 export type TBody = Static<typeof IBody>;
 
-export type createFilterSchemaType = {
+export type createOrUpdateFilterSchemaType = {
   Body: TBody;
   Error: TError;
 };
 
-export const createFilterSchema = {
+export const createOrUpdateFilterSchema = {
   tags: ["filter"],
   deprecated: false,
-  summary: "create a filter",
-  description: "create a filter",
+  summary: "create or update a filter",
+  description: "create or update a filter",
   body: IBody,
   response: {
     200: IBody,

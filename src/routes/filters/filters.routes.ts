@@ -1,9 +1,13 @@
 import { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { getFiltersSchema, filtersSchemaType } from "./schemas/getFilters.schema";
 import { setPaginationHeaders } from "../../helper/setPaginationHeaders";
-import { createFilterSchema, createFilterSchemaType } from "./schemas/createFilter.schema";
-import { updateFilterSchema, updateFilterSchemaType } from "./schemas/updateFilter.schema";
+import {
+  createOrUpdateFilterSchema,
+  createOrUpdateFilterSchemaType,
+  TBody as TCreateOrUpdateFilterBody,
+} from "./schemas/createOrUpdateFilter.schema";
 import { getFilterSchema, getFilterSchemaType } from "./schemas/getFilter.schema";
+import { deleteFilterSchema, deleteFilterSchemaType } from "./schemas/deleteFilterSchema.schema";
 
 const filter: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   // api to get all filters
@@ -20,30 +24,15 @@ const filter: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     },
   });
 
-  // api to store a filter
-  fastify.route<createFilterSchemaType>({
+  // api to create or update a filter
+  fastify.route<createOrUpdateFilterSchemaType>({
     method: "POST",
     url: "/",
-    schema: createFilterSchema,
+    schema: createOrUpdateFilterSchema,
     handler: async (request) => {
-      const filter = request.body;
+      const filter = request.body as TCreateOrUpdateFilterBody;
       const { data } = await fastify.filterService.createOrUpdateFilter({
-        id: undefined,
-        ...filter,
-      });
-      return data;
-    },
-  });
-
-  fastify.route<updateFilterSchemaType>({
-    method: "PATCH",
-    url: "/:id",
-    schema: updateFilterSchema,
-    handler: async (request) => {
-      const { id } = request.params;
-      const filter = request.body;
-      const { data } = await fastify.filterService.createOrUpdateFilter({
-        id: Number(id),
+        id: filter.id ? Number(filter.id) : undefined,
         ...filter,
       });
       return data;
@@ -57,6 +46,18 @@ const filter: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     handler: async (request) => {
       const { id } = request.params;
       const { data } = await fastify.filterService.getFilter(Number(id));
+      return data;
+    },
+  });
+
+  // api to delete a filter
+  fastify.route<deleteFilterSchemaType>({
+    method: "DELETE",
+    url: "/:id",
+    schema: deleteFilterSchema,
+    handler: async (request) => {
+      const { id } = request.params;
+      const { data } = await fastify.filterService.deleteFilter(Number(id));
       return data;
     },
   });
