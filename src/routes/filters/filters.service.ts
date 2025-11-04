@@ -42,14 +42,30 @@ export default fp(async (fastify) => {
           id: filter.id,
         },
       });
+
       if (!existingFilter) {
         throw fastify.httpErrors.notFound(`Filter with id ${filter.id} not found`);
       }
-      if (existingFilter.name !== filter.name || existingFilter.type !== filter.type) {
-        throw fastify.httpErrors.badRequest("Name and type cannot be changed");
+      if (existingFilter.type !== filter.type) {
+        throw fastify.httpErrors.badRequest("Type cannot be changed");
       }
+
+      // check if the filter name already exists with the same type
+      if(existingFilter.name !== filter.name){
+        const existingFilterWithSameName = await filterRepo.findOne({
+          where: {
+            name: filter.name,
+            type: filter.type,
+          },
+        });
+        if (existingFilterWithSameName) {
+          throw fastify.httpErrors.badRequest("Filter name already exists with the same type");
+        }
+      }
+
       // Update existing filter
       existingFilter.filter = JSON.stringify(filter.filter);
+      existingFilter.name = filter.name;
       data = await filterRepo.save(existingFilter);
     } else {
       // Create new filter
