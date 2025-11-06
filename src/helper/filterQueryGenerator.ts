@@ -125,7 +125,7 @@ const buildUserFilters = (filter: Filter) => {
 export const generateFilterQuery = (filter?: Filter, baseFilter?: BaseFilter) => {
   if (!filter) return {};
 
-  const makeTextExpr = (kw: string) => Like(`%${kw}%`);
+  const makeTextExpr = (kw: string) => Like(`% ${kw} %`);
 
   const baseWhere = {
     ...baseFilter,
