@@ -25,7 +25,7 @@ export class CreateFilterClauseTable1731171800000 implements MigrationInterface 
           },
         ],
       }),
-      true
+      true,
     );
 
     // Create foreign key for filter_id
@@ -37,7 +37,7 @@ export class CreateFilterClauseTable1731171800000 implements MigrationInterface 
         referencedTableName: "filter",
         onDelete: "CASCADE",
         onUpdate: "CASCADE",
-      })
+      }),
     );
 
     // Create foreign key for clause_id
@@ -49,19 +49,19 @@ export class CreateFilterClauseTable1731171800000 implements MigrationInterface 
         referencedTableName: "clause",
         onDelete: "CASCADE",
         onUpdate: "CASCADE",
-      })
+      }),
     );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     const table = await queryRunner.getTable("filter_clause");
-    
+
     if (table) {
       const filterForeignKey = table.foreignKeys.find(
-        (fk) => fk.columnNames.indexOf("filter_id") !== -1
+        (fk) => fk.columnNames.indexOf("filter_id") !== -1,
       );
       const clauseForeignKey = table.foreignKeys.find(
-        (fk) => fk.columnNames.indexOf("clause_id") !== -1
+        (fk) => fk.columnNames.indexOf("clause_id") !== -1,
       );
 
       if (filterForeignKey) {
@@ -75,4 +75,3 @@ export class CreateFilterClauseTable1731171800000 implements MigrationInterface 
     await queryRunner.dropTable("filter_clause");
   }
 }
-

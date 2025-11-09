@@ -43,7 +43,7 @@ export class CreateClauseTable1731171600000 implements MigrationInterface {
           },
         ],
       }),
-      true
+      true,
     );
   }
 
@@ -51,4 +51,3 @@ export class CreateClauseTable1731171600000 implements MigrationInterface {
     await queryRunner.dropTable("clause");
   }
 }
-

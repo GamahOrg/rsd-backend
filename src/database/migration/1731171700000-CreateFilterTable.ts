@@ -49,7 +49,7 @@ export class CreateFilterTable1731171700000 implements MigrationInterface {
           },
         ],
       }),
-      true
+      true,
     );
   }
 
@@ -57,4 +57,3 @@ export class CreateFilterTable1731171700000 implements MigrationInterface {
     await queryRunner.dropTable("filter");
   }
 }
-
