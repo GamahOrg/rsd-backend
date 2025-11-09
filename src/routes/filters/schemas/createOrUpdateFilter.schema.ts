@@ -1,11 +1,11 @@
 import { Type, Static } from "@sinclair/typebox";
-import { IError, TError } from "../../../helper/common";
+import { IError, TError, ISavedFilterType } from "../../../helper/common";
 import { IFilter as IFilterType } from "../../../models/types/comment.type";
 
 const IBody = Type.Object({
   id: Type.Optional(Type.Number()),
   name: Type.String(),
-  type: Type.String(),
+  type: ISavedFilterType,
   filter: IFilterType,
 });
 

@@ -8,6 +8,7 @@ import {
 } from "./schemas/createOrUpdateFilter.schema";
 import { getFilterSchema, getFilterSchemaType } from "./schemas/getFilter.schema";
 import { deleteFilterSchema, deleteFilterSchemaType } from "./schemas/deleteFilterSchema.schema";
+import { TSavedFilterType } from "../../helper/common";
 
 const filter: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   // api to get all filters
@@ -17,8 +18,13 @@ const filter: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     schema: getFiltersSchema,
     handler: async (request, response) => {
       const { skip, take } = request.pagination!;
-      const { type } = request.query;
-      const { data, totalRecords } = await fastify.filterService.getAllFilters(type, skip, take);
+      const { type, search } = request.query as { type: TSavedFilterType; search?: string };
+      const { data, totalRecords } = await fastify.filterService.getAllFilters(
+        type,
+        skip,
+        take,
+        search,
+      );
       setPaginationHeaders(response, totalRecords, take);
       return data;
     },

@@ -1,10 +1,10 @@
 import { Type, Static } from "@sinclair/typebox";
-import { IError, TError, IPagination } from "../../../helper/common";
-import { IFilter as IFilterType } from "../../../models/types/comment.type";
+import { IError, TError, IPagination, ISavedFilterType } from "../../../helper/common";
 
 const IQuery = Type.Composite([
   Type.Object({
-    type: Type.String(),
+    type: ISavedFilterType,
+    search: Type.Optional(Type.String()),
   }),
   IPagination,
 ]);

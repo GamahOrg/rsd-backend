@@ -1,14 +1,20 @@
 import fp from "fastify-plugin";
-import { IsNull } from "typeorm";
+import { IsNull, Like } from "typeorm";
 import { AppDataSource } from "../../config/database";
 import { Filter } from "../../database/entity/Filter.entity";
 import { TFilter } from "../../models/types/comment.type";
 import { TResponse as GetAllFiltersResponse } from "./schemas/getFilters.schema";
 import { TResponse as GetFilterResponse } from "./schemas/getFilter.schema";
 import { TResponse as DeleteFilterResponse } from "./schemas/deleteFilterSchema.schema";
+import { TSavedFilterType } from "../../helper/common";
 
 export default fp(async (fastify) => {
-  const getAllFilters = async (type: string, skip: number, take: number) => {
+  const getAllFilters = async (
+    type: TSavedFilterType,
+    skip: number,
+    take: number,
+    search?: string | undefined,
+  ) => {
     const filterRepo = AppDataSource.getRepository(Filter);
     const qb = filterRepo.createQueryBuilder("filter").setFindOptions({
       select: {
@@ -19,6 +25,7 @@ export default fp(async (fastify) => {
       },
       where: {
         type,
+        ...(search ? { name: Like(`%${search}%`) } : {}),
         deleted_at: IsNull(),
       },
       skip,
@@ -131,14 +138,15 @@ declare module "fastify" {
   interface FastifyInstance {
     filterService: {
       getAllFilters: (
-        type: string,
+        type: TSavedFilterType,
         skip: number,
         take: number,
+        search?: string | undefined,
       ) => Promise<{ data: GetAllFiltersResponse; totalRecords: number }>;
       createOrUpdateFilter: (filter: {
         id: number | undefined;
         name: string;
-        type: string;
+        type: TSavedFilterType;
         filter: TFilter;
       }) => Promise<{ data: GetFilterResponse }>;
       getFilter: (id: number) => Promise<{ data: GetFilterResponse }>;
