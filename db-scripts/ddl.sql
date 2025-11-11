@@ -152,16 +152,47 @@ select count(*)                                             as total_posts,
 from post
 go
 
+-- Clause table: stores reusable search clauses with include/exclude patterns
+create table clause
+(
+    id              bigint identity
+        primary key,
+    name            nvarchar(255) not null,
+    include_clause  nvarchar(max) not null,
+    exclude_clause  nvarchar(max) not null,
+    operator        nvarchar(255) not null default 'AND',
+    created_at      datetime not null default getdate(),
+    updated_at      datetime null,
+    deleted_at      datetime null
+)
+go
 
+-- Filter table: stores filter configurations
 create table filter
 (
     id           bigint identity
         primary key,
     name         nvarchar(255) not null,
-    type         varchar(255) not null,
+    type         varchar(50) not null,
     filter       nvarchar(max) not null,
-    created_at   datetime not null,
-    updated_at   datetime not null,
+    created_at   datetime not null default getdate(),
+    updated_at   datetime null,
     deleted_at   datetime null
+)
+go
+
+-- Filter clauses junction table: many-to-many relationship between filters and clauses
+create table filter_clauses
+(
+    id          bigint identity
+        primary key,
+    filter_id   bigint not null
+        constraint FK_filter_clauses_filter
+            references filter (id)
+            on delete cascade,
+    clause_id   bigint not null
+        constraint FK_filter_clauses_clause
+            references clause (id)
+            on delete cascade
 )
 go

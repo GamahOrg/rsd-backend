@@ -9,7 +9,13 @@ export class Clause extends BaseEntity {
   name!: string;
 
   @Column({ type: "nvarchar", nullable: false })
-  clause!: string;
+  include_clause!: string;
+
+  @Column({ type: "nvarchar", nullable: false })
+  exclude_clause!: string;
+
+  @Column({ type: "nvarchar", nullable: false, default: "AND" })
+  operator!: "AND" | "OR";
 
   @Column({ type: "datetime", nullable: false })
   created_at?: Date;

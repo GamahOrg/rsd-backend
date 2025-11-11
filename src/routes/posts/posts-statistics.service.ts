@@ -14,39 +14,43 @@ export default fp(async (fastify) => {
   const getGeneralStatistics = async (filter: DataFilterType | undefined) => {
     const postRepo = AppDataSource.getRepository(Post);
 
+    // Generate all filter queries first
+    const [generalFilter, postsFilter, quotesFilter, repliesFilter] = await Promise.all([
+      generateFilterQuery(
+        filter as Filter,
+        {
+          post_type: In(["post", "quote", "replied_to"]),
+        } as BaseFilter,
+        fastify,
+      ),
+      generateFilterQuery(
+        filter as Filter,
+        {
+          post_type: "post",
+        } as BaseFilter,
+        fastify,
+      ),
+      generateFilterQuery(
+        filter as Filter,
+        {
+          post_type: "quote",
+        } as BaseFilter,
+        fastify,
+      ),
+      generateFilterQuery(
+        filter as Filter,
+        {
+          post_type: "replied_to",
+        } as BaseFilter,
+        fastify,
+      ),
+    ]);
+
     const [generalCount, postsCount, quotesCount, repliesCount] = await Promise.all([
-      postRepo.count({
-        where: generateFilterQuery(
-          filter as Filter,
-          {
-            post_type: In(["post", "quote", "replied_to"]),
-          } as BaseFilter,
-        ),
-      }),
-      postRepo.count({
-        where: generateFilterQuery(
-          filter as Filter,
-          {
-            post_type: "post",
-          } as BaseFilter,
-        ),
-      }),
-      postRepo.count({
-        where: generateFilterQuery(
-          filter as Filter,
-          {
-            post_type: "quote",
-          } as BaseFilter,
-        ),
-      }),
-      postRepo.count({
-        where: generateFilterQuery(
-          filter as Filter,
-          {
-            post_type: "replied_to",
-          } as BaseFilter,
-        ),
-      }),
+      postRepo.count({ where: generalFilter }),
+      postRepo.count({ where: postsFilter }),
+      postRepo.count({ where: quotesFilter }),
+      postRepo.count({ where: repliesFilter }),
     ]);
 
     return {
@@ -127,11 +131,12 @@ export default fp(async (fastify) => {
     // normalize post types.
     const postTypes = type === "general" ? In(["post", "quote", "replied_to"]) : type;
 
-    const filterQuery = generateFilterQuery(
+    const filterQuery = await generateFilterQuery(
       filter as Filter,
       {
         post_type: postTypes,
       } as BaseFilter,
+      fastify,
     );
 
     const postRepo = AppDataSource.getRepository(Post);
@@ -182,14 +187,21 @@ export default fp(async (fastify) => {
 
     const postRepo = AppDataSource.getRepository(Post);
 
-    const counts = await Promise.all(
+    // Generate all filter queries first
+    const filterQueries = await Promise.all(
       sentiments.map((sentiment) =>
-        postRepo.count({
-          where: generateFilterQuery(filter as Filter, {
+        generateFilterQuery(
+          filter as Filter,
+          {
             sentiment: sentiment === "none" ? IsNull() : sentiment,
-          }),
-        }),
+          },
+          fastify,
+        ),
       ),
+    );
+
+    const counts = await Promise.all(
+      filterQueries.map((filterQuery) => postRepo.count({ where: filterQuery })),
     );
 
     const [positive, negative, neutral, none] = counts;

@@ -713,7 +713,7 @@ async function main() {
     // Perform migration in order (respecting foreign keys)
     await migrateCountries();
     await migrateKeywordPostCounts();
-    await migrateFilters();
+    // await migrateFilters();
     const userIds = await migrateUsers(100);
     const postIds = await migratePosts(userIds);
     await migrateMentions(postIds, userIds);
