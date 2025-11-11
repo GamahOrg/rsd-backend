@@ -1,5 +1,5 @@
 import fp from "fastify-plugin";
-import { IsNull, Like } from "typeorm";
+import { IsNull, Like, QueryRunner } from "typeorm";
 import { AppDataSource } from "../../config/database";
 import { Filter } from "../../database/entity/Filter.entity";
 import { TFilter } from "../../models/types/comment.type";
@@ -7,6 +7,7 @@ import { TResponse as GetAllFiltersResponse } from "./schemas/getFilters.schema"
 import { TResponse as GetFilterResponse } from "./schemas/getFilter.schema";
 import { TResponse as DeleteFilterResponse } from "./schemas/deleteFilterSchema.schema";
 import { TSavedFilterType } from "../../helper/common";
+import { FilterClause } from "../../database/entity/FilterClause.entity";
 
 export default fp(async (fastify) => {
   const getAllFilters = async (
@@ -25,12 +26,12 @@ export default fp(async (fastify) => {
       },
       where: {
         type,
-        ...(search ? { name: Like(`%${search}%`) } : {}),
+        ...(search ? { name: Like(`${search}%`) } : {}),
         deleted_at: IsNull(),
       },
       skip,
       take,
-      order: { created_at: "asc" },
+      order: { name: "asc" },
     });
     const [data, totalRecords] = await qb.getManyAndCount();
 
@@ -43,26 +44,57 @@ export default fp(async (fastify) => {
     type: string;
     filter: TFilter;
   }) => {
-    const filterRepo = AppDataSource.getRepository(Filter);
+    // create or update filter with transaction
+    const queryRunner = AppDataSource.createQueryRunner();
 
-    let data;
-    if (filter.id) {
-      const existingFilter = await filterRepo.findOne({
-        where: {
-          id: filter.id,
-          deleted_at: IsNull(),
-        },
-      });
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
 
-      if (!existingFilter) {
-        throw fastify.httpErrors.notFound(`Filter with id ${filter.id} not found`);
-      }
-      if (existingFilter.type !== filter.type) {
-        throw fastify.httpErrors.badRequest("Type cannot be changed");
-      }
+      // Use queryRunner's manager for all operations to be part of the transaction
+      const filterRepo = queryRunner.manager.getRepository(Filter);
 
-      // check if the filter name already exists with the same type
-      if (existingFilter.name !== filter.name) {
+      let data;
+      if (filter.id) {
+        const existingFilter = await filterRepo.findOne({
+          where: {
+            id: filter.id,
+            deleted_at: IsNull(),
+          },
+        });
+
+        if (!existingFilter) {
+          throw fastify.httpErrors.notFound(`Filter with id ${filter.id} not found`);
+        }
+        if (existingFilter.type !== filter.type) {
+          throw fastify.httpErrors.badRequest("Type cannot be changed");
+        }
+
+        // check if the filter name already exists with the same type
+        if (existingFilter.name !== filter.name) {
+          const existingFilterWithSameName = await filterRepo.findOne({
+            where: {
+              name: filter.name,
+              type: filter.type,
+              deleted_at: IsNull(),
+            },
+          });
+          if (existingFilterWithSameName) {
+            throw fastify.httpErrors.badRequest("Filter name already exists with the same type");
+          }
+        }
+        // add filter clauses to the filter_clauses table
+        const filterClauses = filter.filter.post.clauses;
+        // Update existing filter
+        existingFilter.filter = JSON.stringify(filter.filter);
+        existingFilter.updated_at = new Date();
+        existingFilter.name = filter.name;
+        data = await filterRepo.save(existingFilter);
+        // Update existing filter clauses within the transaction
+        await createOrUpdateFilterClauses(existingFilter.id, filterClauses?.ids ?? [], queryRunner);
+      } else {
+        // Create new filter
+        // check if the filter name already exists with the same type
         const existingFilterWithSameName = await filterRepo.findOne({
           where: {
             name: filter.name,
@@ -73,25 +105,65 @@ export default fp(async (fastify) => {
         if (existingFilterWithSameName) {
           throw fastify.httpErrors.badRequest("Filter name already exists with the same type");
         }
+        data = await filterRepo.save({
+          name: filter.name,
+          type: filter.type,
+          filter: JSON.stringify(filter.filter),
+        });
+        // add filter clauses to the filter_clauses table within the transaction
+        const filterClauses = filter.filter.post.clauses;
+        await createOrUpdateFilterClauses(data.id, filterClauses?.ids ?? [], queryRunner);
       }
 
-      // Update existing filter
-      existingFilter.filter = JSON.stringify(filter.filter);
-      existingFilter.updated_at = new Date();
-      existingFilter.name = filter.name;
-      data = await filterRepo.save(existingFilter);
-    } else {
-      // Create new filter
-      data = await filterRepo.save({
-        name: filter.name,
-        type: filter.type,
-        filter: JSON.stringify(filter.filter),
-      });
+      await queryRunner.commitTransaction();
+
+      return {
+        data: {
+          ...data,
+          filter: JSON.parse(data.filter) as TFilter,
+        } as unknown as GetFilterResponse,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  };
+
+  const createOrUpdateFilterClauses = async (
+    filterId: number,
+    clauseIds: number[],
+    queryRunner?: QueryRunner,
+  ) => {
+    const filterClauseRepo = queryRunner
+      ? queryRunner.manager.getRepository(FilterClause)
+      : AppDataSource.getRepository(FilterClause);
+
+    // Get existing filter clauses
+    const existingFilterClauses = await filterClauseRepo.find({
+      where: { filter_id: filterId },
+    });
+
+    const existingClauseIds = existingFilterClauses.map((fc: FilterClause) => fc.clause_id);
+
+    // Delete clauses that are no longer needed
+    const clausesToDelete = existingFilterClauses.filter(
+      (fc: FilterClause) => !clauseIds.includes(fc.clause_id),
+    );
+    if (clausesToDelete.length > 0) {
+      await filterClauseRepo.remove(clausesToDelete);
     }
 
-    return {
-      data: { ...data, filter: JSON.parse(data.filter) as TFilter } as unknown as GetFilterResponse,
-    };
+    // Add new clauses
+    const clausesToAdd = clauseIds.filter((cid: number) => !existingClauseIds.includes(cid));
+    if (clausesToAdd.length > 0) {
+      const newFilterClauses = clausesToAdd.map((clauseId) => ({
+        filter_id: filterId,
+        clause_id: clauseId,
+      }));
+      await filterClauseRepo.insert(newFilterClauses);
+    }
   };
 
   const getFilter = async (id: number) => {

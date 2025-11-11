@@ -1,59 +1,21 @@
-import { MigrationInterface, QueryRunner, Table } from "typeorm";
+import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class CreateFilterTable1731171700000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.createTable(
-      new Table({
-        name: "filter",
-        columns: [
-          {
-            name: "id",
-            type: "bigint",
-            isPrimary: true,
-            isGenerated: true,
-            generationStrategy: "identity",
-          },
-          {
-            name: "name",
-            type: "nvarchar",
-            length: "255",
-            isNullable: false,
-          },
-          {
-            name: "type",
-            type: "varchar",
-            length: "50",
-            isNullable: false,
-          },
-          {
-            name: "filter",
-            type: "nvarchar",
-            length: "max",
-            isNullable: false,
-          },
-          {
-            name: "created_at",
-            type: "datetime",
-            isNullable: false,
-            default: "GETDATE()",
-          },
-          {
-            name: "updated_at",
-            type: "datetime",
-            isNullable: true,
-          },
-          {
-            name: "deleted_at",
-            type: "datetime",
-            isNullable: true,
-          },
-        ],
-      }),
-      true,
-    );
+    await queryRunner.query(`
+      CREATE TABLE dbo.filter (
+        id BIGINT IDENTITY(1,1) PRIMARY KEY,
+        name NVARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        filter NVARCHAR(MAX) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT GETDATE(),
+        updated_at DATETIME NULL,
+        deleted_at DATETIME NULL
+      )
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropTable("filter");
+    await queryRunner.query(`DROP TABLE dbo.filter`);
   }
 }

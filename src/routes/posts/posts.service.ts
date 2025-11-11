@@ -10,12 +10,13 @@ import { TFilter as dataFilterType } from "../../models/types/comment.type";
 export default fp(async (fastify) => {
   const getAllPosts = async (filter: dataFilterType | undefined, skip: number, take: number) => {
     // query
-    const whereClause = generateFilterQuery(
+    const whereClause = await generateFilterQuery(
       filter as Filter,
       {
         post_type: In(["post", "quote", "replied_to"]),
         text: And(Not(IsNull()), Not("")),
       } as BaseFilter,
+      fastify,
     );
     const postRepo = AppDataSource.getRepository(Post);
     // Build order object based on field type

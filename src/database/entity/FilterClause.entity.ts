@@ -1,8 +1,8 @@
 import { BaseEntity, Entity, PrimaryGeneratedColumn, Column } from "typeorm";
 
-@Entity({ name: "filter_clause" })
+@Entity({ name: "filter_clauses" })
 export class FilterClause extends BaseEntity {
-  @PrimaryGeneratedColumn({ type: "bigint" })
+  @PrimaryGeneratedColumn("increment", { type: "bigint" })
   id!: number;
 
   @Column({ type: "bigint", nullable: false })

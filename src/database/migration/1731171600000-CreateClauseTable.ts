@@ -1,53 +1,22 @@
-import { MigrationInterface, QueryRunner, Table } from "typeorm";
+import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class CreateClauseTable1731171600000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.createTable(
-      new Table({
-        name: "clause",
-        columns: [
-          {
-            name: "id",
-            type: "bigint",
-            isPrimary: true,
-            isGenerated: true,
-            generationStrategy: "identity",
-          },
-          {
-            name: "name",
-            type: "nvarchar",
-            length: "255",
-            isNullable: false,
-          },
-          {
-            name: "clause",
-            type: "nvarchar",
-            length: "max",
-            isNullable: false,
-          },
-          {
-            name: "created_at",
-            type: "datetime",
-            isNullable: false,
-            default: "GETDATE()",
-          },
-          {
-            name: "updated_at",
-            type: "datetime",
-            isNullable: true,
-          },
-          {
-            name: "deleted_at",
-            type: "datetime",
-            isNullable: true,
-          },
-        ],
-      }),
-      true,
-    );
+    await queryRunner.query(`
+      CREATE TABLE dbo.clause (
+        id BIGINT IDENTITY(1,1) PRIMARY KEY,
+        name NVARCHAR(255) NOT NULL,
+        include_clause NVARCHAR(MAX) NOT NULL,
+        exclude_clause NVARCHAR(MAX) NOT NULL,
+        operator NVARCHAR(255) NOT NULL DEFAULT 'AND',
+        created_at DATETIME NOT NULL DEFAULT GETDATE(),
+        updated_at DATETIME NULL,
+        deleted_at DATETIME NULL
+      )
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropTable("clause");
+    await queryRunner.query(`DROP TABLE dbo.clause`);
   }
 }
