@@ -1,13 +1,13 @@
 import fp from "fastify-plugin";
 import { IsNull, Like, QueryRunner } from "typeorm";
 import { AppDataSource } from "../../config/database";
-import { Filter } from "../../database/entity/Filter.entity";
+import { XFilter } from "../../database/entity/Filter.entity";
 import { TFilter } from "../../models/types/comment.type";
 import { TResponse as GetAllFiltersResponse } from "./schemas/getFilters.schema";
 import { TResponse as GetFilterResponse } from "./schemas/getFilter.schema";
 import { TResponse as DeleteFilterResponse } from "./schemas/deleteFilterSchema.schema";
 import { TSavedFilterType } from "../../helper/common";
-import { FilterClause } from "../../database/entity/FilterClause.entity";
+import { XFilterClause } from "../../database/entity/FilterClause.entity";
 
 export default fp(async (fastify) => {
   const getAllFilters = async (
@@ -16,7 +16,7 @@ export default fp(async (fastify) => {
     take: number,
     search?: string | undefined,
   ) => {
-    const filterRepo = AppDataSource.getRepository(Filter);
+    const filterRepo = AppDataSource.getRepository(XFilter);
     const qb = filterRepo.createQueryBuilder("filter").setFindOptions({
       select: {
         id: true,
@@ -53,7 +53,7 @@ export default fp(async (fastify) => {
       await queryRunner.startTransaction();
 
       // Use queryRunner's manager for all operations to be part of the transaction
-      const filterRepo = queryRunner.manager.getRepository(Filter);
+      const filterRepo = queryRunner.manager.getRepository(XFilter);
 
       let data;
       if (filter.id) {
@@ -138,19 +138,19 @@ export default fp(async (fastify) => {
     queryRunner?: QueryRunner,
   ) => {
     const filterClauseRepo = queryRunner
-      ? queryRunner.manager.getRepository(FilterClause)
-      : AppDataSource.getRepository(FilterClause);
+      ? queryRunner.manager.getRepository(XFilterClause)
+      : AppDataSource.getRepository(XFilterClause);
 
     // Get existing filter clauses
     const existingFilterClauses = await filterClauseRepo.find({
       where: { filter_id: filterId },
     });
 
-    const existingClauseIds = existingFilterClauses.map((fc: FilterClause) => fc.clause_id);
+    const existingClauseIds = existingFilterClauses.map((fc: XFilterClause) => fc.clause_id);
 
     // Delete clauses that are no longer needed
     const clausesToDelete = existingFilterClauses.filter(
-      (fc: FilterClause) => !clauseIds.includes(fc.clause_id),
+      (fc: XFilterClause) => !clauseIds.includes(fc.clause_id),
     );
     if (clausesToDelete.length > 0) {
       await filterClauseRepo.remove(clausesToDelete);
@@ -168,7 +168,7 @@ export default fp(async (fastify) => {
   };
 
   const getFilter = async (id: number) => {
-    const filterRepo = AppDataSource.getRepository(Filter);
+    const filterRepo = AppDataSource.getRepository(XFilter);
     const data = await filterRepo.findOne({
       where: { id, deleted_at: IsNull() },
     });
@@ -181,7 +181,7 @@ export default fp(async (fastify) => {
   };
 
   const deleteFilter = async (id: number) => {
-    const filterRepo = AppDataSource.getRepository(Filter);
+    const filterRepo = AppDataSource.getRepository(XFilter);
     const existingFilter = await filterRepo.findOne({
       where: { id, deleted_at: IsNull() },
     });

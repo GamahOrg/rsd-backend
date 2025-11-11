@@ -1,7 +1,7 @@
 import fp from "fastify-plugin";
 import { TResponse as GetAllPostsResponse } from "./schemas/getPosts.schema";
 import { TResponse as GetAllRepliesResponse } from "./schemas/getReplies.schema";
-import { AppDataSource } from "../../config/database";
+import { XDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
 import { In, Not, IsNull, And } from "typeorm";
 import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
@@ -18,7 +18,7 @@ export default fp(async (fastify) => {
       } as BaseFilter,
       fastify,
     );
-    const postRepo = AppDataSource.getRepository(Post);
+    const postRepo = XDataSource.getRepository(Post);
     // Build order object based on field type
     let orderBy: any = { posted_at: "asc" };
     if (filter?.orderBy) {
@@ -51,7 +51,7 @@ export default fp(async (fastify) => {
   };
 
   const getAllReplies = async (post_id: string, skip: number, take: number) => {
-    const replyRepo = AppDataSource.getRepository(Post);
+    const replyRepo = XDataSource.getRepository(Post);
 
     const qb = replyRepo.createQueryBuilder("reply").setFindOptions({
       where: [
@@ -73,7 +73,7 @@ export default fp(async (fastify) => {
   };
 
   const getPost = async (post_id: string) => {
-    const postRepo = AppDataSource.getRepository(Post);
+    const postRepo = XDataSource.getRepository(Post);
     const data = await postRepo.findOne({
       where: {
         post_id,

@@ -1,6 +1,6 @@
 import fp from "fastify-plugin";
 import { AppDataSource } from "../../config/database";
-import { Clause } from "../../database/entity/Clause.entity";
+import { XClause } from "../../database/entity/Clause.entity";
 import { TResponse as GetAllClausesResponse } from "./schemas/getClauses.schema";
 import { TResponse as GetClauseResponse } from "./schemas/getClause.schema";
 import { FilterClause } from "../../database/entity/FilterClause.entity";
@@ -41,7 +41,7 @@ const countWordsInClause = (clause: string): number => {
 
 export default fp(async (fastify) => {
   const getAllClausesDropdown = async (skip: number, take: number, search?: string | undefined) => {
-    const clauseRepo = AppDataSource.getRepository(Clause);
+    const clauseRepo = AppDataSource.getRepository(XClause);
     const qb = clauseRepo.createQueryBuilder("clause").setFindOptions({
       select: {
         id: true,
@@ -63,7 +63,7 @@ export default fp(async (fastify) => {
   };
 
   const getAllClauses = async (skip: number, take: number) => {
-    const clauseRepo = AppDataSource.getRepository(Clause);
+    const clauseRepo = AppDataSource.getRepository(XClause);
     const qb = clauseRepo.createQueryBuilder("clause").setFindOptions({
       where: {
         deleted_at: IsNull(),
@@ -92,7 +92,7 @@ export default fp(async (fastify) => {
     exclude_clause: string;
     operator: "AND" | "OR";
   }) => {
-    const clauseRepo = AppDataSource.getRepository(Clause);
+    const clauseRepo = AppDataSource.getRepository(XClause);
     let data;
     if (clause.id) {
       // 1. check if the clause exists
@@ -137,7 +137,7 @@ export default fp(async (fastify) => {
   };
 
   const getClause = async (id: number) => {
-    const clauseRepo = AppDataSource.getRepository(Clause);
+    const clauseRepo = AppDataSource.getRepository(XClause);
     const data = await clauseRepo.findOne({
       where: { id },
     });
@@ -168,7 +168,7 @@ export default fp(async (fastify) => {
   };
 
   const deleteClause = async (id: number) => {
-    const clauseRepo = AppDataSource.getRepository(Clause);
+    const clauseRepo = AppDataSource.getRepository(XClause);
     const existingClause = await clauseRepo.findOne({
       where: { id, deleted_at: IsNull() },
     });

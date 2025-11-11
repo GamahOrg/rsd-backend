@@ -1,12 +1,12 @@
 import fp from "fastify-plugin";
 import { TResponse as GetUsersResponse } from "./schemas/getUsernames.schema";
 import { TResponse as GetUserResponse } from "./schemas/getUser.schema";
-import { AppDataSource } from "../../config/database";
+import { XDataSource } from "../../config/database";
 import { User } from "../../database/entity/User.entity";
 
 export default fp(async (fastify) => {
   const getUsernamesByUsername = async (username: string, skip: number, take: number) => {
-    const userRepo = AppDataSource.getRepository(User);
+    const userRepo = XDataSource.getRepository(User);
 
     const qb = userRepo
       .createQueryBuilder("user")
@@ -22,7 +22,7 @@ export default fp(async (fastify) => {
   };
 
   const getUser = async (user_id: string) => {
-    const userRepo = AppDataSource.getRepository(User);
+    const userRepo = XDataSource.getRepository(User);
     const data = await userRepo.findOne({ where: { user_id } });
     return { data: data as unknown as GetUserResponse };
   };

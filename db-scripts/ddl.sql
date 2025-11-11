@@ -152,8 +152,8 @@ select count(*)                                             as total_posts,
 from post
 go
 
--- Clause table: stores reusable search clauses with include/exclude patterns
-create table clause
+-- XClause table: stores reusable search clauses with include/exclude patterns
+create table social_media.x_clause
 (
     id              bigint identity
         primary key,
@@ -168,7 +168,7 @@ create table clause
 go
 
 -- Filter table: stores filter configurations
-create table filter
+create table social_media.x_filter
 (
     id           bigint identity
         primary key,
@@ -182,17 +182,17 @@ create table filter
 go
 
 -- Filter clauses junction table: many-to-many relationship between filters and clauses
-create table filter_clauses
+create table social_media.x_filter_clauses
 (
     id          bigint identity
         primary key,
     filter_id   bigint not null
         constraint FK_filter_clauses_filter
-            references filter (id)
+            references social_media.x_filter (id)
             on delete cascade,
     clause_id   bigint not null
         constraint FK_filter_clauses_clause
-            references clause (id)
+            references social_media.x_clause (id)
             on delete cascade
 )
 go

@@ -1,12 +1,12 @@
 import fp from "fastify-plugin";
 import { TResponse as GetKeywordsResponse } from "./schemas/getKeywords.schema";
 import { TResponse as GetKeywordsStatisticsResponse } from "./schemas/getKeywordsStatistics.schema";
-import { AppDataSource } from "../../config/database";
+import { XDataSource } from "../../config/database";
 import { Keyword } from "../../database/entity/Keyword.entity";
 
 export default fp(async (fastify) => {
   const getKeywordsByKeyword = async (keyword: string, skip: number, take: number) => {
-    const keywordRepo = AppDataSource.getRepository(Keyword);
+    const keywordRepo = XDataSource.getRepository(Keyword);
 
     const qb = keywordRepo
       .createQueryBuilder("keyword")
@@ -22,7 +22,7 @@ export default fp(async (fastify) => {
   };
 
   const getKeywordsStatistics = async (search: string, skip: number, take: number) => {
-    const keywordRepo = AppDataSource.getRepository(Keyword);
+    const keywordRepo = XDataSource.getRepository(Keyword);
     const qb = keywordRepo.createQueryBuilder("keyword").select("*");
     if (search) {
       qb.where("keyword.keyword LIKE :search", { search: `${search}%` });

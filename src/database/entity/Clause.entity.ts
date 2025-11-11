@@ -1,7 +1,7 @@
 import { BaseEntity, Entity, PrimaryGeneratedColumn, Column } from "typeorm";
 
-@Entity({ name: "clause" })
-export class Clause extends BaseEntity {
+@Entity({ name: "x_clause", schema: "social_media" })
+export class XClause extends BaseEntity {
   @PrimaryGeneratedColumn({ type: "bigint" })
   id!: number;
 

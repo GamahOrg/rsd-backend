@@ -1,7 +1,7 @@
 import { BaseEntity, Entity, PrimaryGeneratedColumn, Column } from "typeorm";
 
-@Entity({ name: "filter" })
-export class Filter extends BaseEntity {
+@Entity({ name: "x_filter", schema: "social_media" })
+export class XFilter extends BaseEntity {
   @PrimaryGeneratedColumn({ type: "bigint" })
   id!: number;
 

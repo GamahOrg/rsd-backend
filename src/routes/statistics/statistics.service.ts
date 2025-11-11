@@ -1,19 +1,19 @@
 import fp from "fastify-plugin";
-import { AppDataSource } from "../../config/database";
+import { XDataSource } from "../../config/database";
 import { PostStatisticsSummary } from "../../database/entity/PostStatisticsSummary.entity";
 import { TResponse as GetPostStatisticsResponse } from "./schemas/getPostStatistics.schema";
 import { Keyword } from "../../database/entity/Keyword.entity";
 
 export default fp(async (fastify) => {
   const getPostStatistics = async () => {
-    const postStatisticsSummaryRepo = AppDataSource.getRepository(PostStatisticsSummary);
+    const postStatisticsSummaryRepo = XDataSource.getRepository(PostStatisticsSummary);
 
     const qb = postStatisticsSummaryRepo.createQueryBuilder("postStatisticsSummary").select("*");
 
     const data = await qb.getRawOne();
 
     // get total keywords
-    const keywordRepo = AppDataSource.getRepository(Keyword);
+    const keywordRepo = XDataSource.getRepository(Keyword);
     const totalKeywords = await keywordRepo.count();
 
     return {
