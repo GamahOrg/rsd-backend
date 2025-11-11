@@ -3,7 +3,7 @@ import { AppDataSource } from "../../config/database";
 import { XClause } from "../../database/entity/Clause.entity";
 import { TResponse as GetAllClausesResponse } from "./schemas/getClauses.schema";
 import { TResponse as GetClauseResponse } from "./schemas/getClause.schema";
-import { FilterClause } from "../../database/entity/FilterClause.entity";
+import { XFilterClause } from "../../database/entity/FilterClause.entity";
 import { IsNull, Like } from "typeorm";
 import { TResponse as DeleteResponse } from "./schemas/deleteSchema.schema";
 import { TResponse as CreateOrUpdateResponse } from "./schemas/createOrUpdate.schema";
@@ -150,7 +150,7 @@ export default fp(async (fastify) => {
   };
 
   const checkIfClauseIsConnectedToFilter = async (id: number) => {
-    const filterClauseRepo = AppDataSource.getRepository(FilterClause);
+    const filterClauseRepo = AppDataSource.getRepository(XFilterClause);
     const filterClause = await filterClauseRepo.findOne({
       where: {
         clause_id: id,
