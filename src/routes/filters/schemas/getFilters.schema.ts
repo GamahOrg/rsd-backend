@@ -3,7 +3,7 @@ import { IError, TError, IPagination, ISavedFilterType } from "../../../helper/c
 
 const IQuery = Type.Composite([
   Type.Object({
-    type: ISavedFilterType,
+    type: Type.Optional(ISavedFilterType),
     search: Type.Optional(Type.String()),
   }),
   IPagination,
@@ -14,6 +14,7 @@ const IResponse = Type.Array(
   Type.Object({
     id: Type.Number(),
     name: Type.String(),
+    type: ISavedFilterType,
     created_at: Type.String(),
     updated_at: Type.String(),
   }),

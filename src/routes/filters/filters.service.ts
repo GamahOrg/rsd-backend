@@ -11,7 +11,7 @@ import { FilterClause } from "../../database/entity/FilterClause.entity";
 
 export default fp(async (fastify) => {
   const getAllFilters = async (
-    type: TSavedFilterType,
+    type: TSavedFilterType | undefined,
     skip: number,
     take: number,
     search?: string | undefined,
@@ -21,11 +21,12 @@ export default fp(async (fastify) => {
       select: {
         id: true,
         name: true,
+        type: true,
         created_at: true,
         updated_at: true,
       },
       where: {
-        type,
+        ...(type ? { type } : {}),
         ...(search ? { name: Like(`${search}%`) } : {}),
         deleted_at: IsNull(),
       },
@@ -210,7 +211,7 @@ declare module "fastify" {
   interface FastifyInstance {
     filterService: {
       getAllFilters: (
-        type: TSavedFilterType,
+        type: TSavedFilterType | undefined,
         skip: number,
         take: number,
         search?: string | undefined,
