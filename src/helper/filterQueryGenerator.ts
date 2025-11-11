@@ -57,6 +57,14 @@ type NumberRange = { min?: number; max?: number } | undefined;
 const isDefined = <T>(value: T | undefined | null): value is T =>
   value !== undefined && value !== null;
 
+/**
+ * Escape special characters in LIKE patterns
+ * Underscores (_) are escaped using brackets [_]
+ */
+const escapeLikePattern = (text: string): string => {
+  return text.replace(/_/g, "[_]");
+};
+
 const buildNumberRangeFilter = (field: string, range: NumberRange) => {
   if (!range) return {};
   const { min, max } = range;
@@ -129,7 +137,7 @@ const buildUserFilters = (filter: Filter) => {
   };
 };
 
-const makeTextExpr = (kw: string) => Like(`% ${kw} %`);
+const makeTextExpr = (kw: string) => Like(`% ${escapeLikePattern(kw)} %`);
 
 export const generateFilterQuery = async (
   filter?: Filter,
@@ -486,7 +494,7 @@ const negateExpression = (node: ExpressionNode): ExpressionNode => {
  */
 const expressionToTypeORM = (node: ExpressionNode): FindOperator<string> => {
   if (node.type === "TERM") {
-    const likeOperator = Like(`% ${node.value} %`);
+    const likeOperator = Like(`% ${escapeLikePattern(node.value)} %`);
     return node.isNegated ? Not(likeOperator) : likeOperator;
   }
 
