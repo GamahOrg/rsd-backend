@@ -16,6 +16,10 @@ import {
   canPerformActionSchema,
   canPerformActionSchemaType,
 } from "./schemas/canPerformAction.schema";
+import {
+  getClauseStatisticsSchema,
+  getClauseStatisticsSchemaType,
+} from "./schemas/getClauseStatistics.schema";
 
 const clause: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   // api to get all clauses
@@ -74,6 +78,17 @@ const clause: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     handler: async (request) => {
       const { id } = request.params;
       const { data } = await fastify.clauseService.getClause(Number(id));
+      return data;
+    },
+  });
+
+  fastify.route<getClauseStatisticsSchemaType>({
+    method: "GET",
+    url: "/:id/statistics",
+    schema: getClauseStatisticsSchema,
+    handler: async (request) => {
+      const { id } = request.params;
+      const { data } = await fastify.clauseService.getClauseStatistics(Number(id));
       return data;
     },
   });

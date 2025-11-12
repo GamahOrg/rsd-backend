@@ -1,14 +1,17 @@
 import fp from "fastify-plugin";
-import { AppDataSource } from "../../config/database";
+import { AppDataSource, XDataSource } from "../../config/database";
 import { XClause } from "../../database/entity/Clause.entity";
 import { TResponse as GetAllClausesResponse } from "./schemas/getClauses.schema";
 import { TResponse as GetClauseResponse } from "./schemas/getClause.schema";
+import { TResponse as GetClauseStatisticsResponse } from "./schemas/getClauseStatistics.schema";
 import { XFilterClause } from "../../database/entity/FilterClause.entity";
 import { IsNull, Like } from "typeorm";
 import { TResponse as DeleteResponse } from "./schemas/deleteSchema.schema";
 import { TResponse as CreateOrUpdateResponse } from "./schemas/createOrUpdate.schema";
 import { TResponse as GetAllClausesDropdownResponse } from "./schemas/getClausesDropdown.schema";
 import { TResponse as canPerformActionResponse } from "./schemas/canPerformAction.schema";
+import { fetchClauseAsTypeORM } from "../../helper/filterQueryGenerator";
+import { Post } from "../../database/entity/Post.entity";
 
 // Helper function to extract and count words from SQL clause
 const countWordsInClause = (clause: string): number => {
@@ -149,6 +152,66 @@ export default fp(async (fastify) => {
     };
   };
 
+  const getClauseStatistics = async (id: number) => {
+    const clauseRepo = AppDataSource.getRepository(XClause);
+    const clauseData = await clauseRepo.findOne({
+      where: { id, deleted_at: IsNull() },
+    });
+
+    if (!clauseData) {
+      throw fastify.httpErrors.notFound(`Clause with id ${id} not found`);
+    }
+    const clauseFilter = await fetchClauseAsTypeORM(id, fastify);
+
+    const postRepo = XDataSource.getRepository(Post);
+
+    // Only apply the filter if clauseFilter is not null
+    let total_posts = 0;
+    let total_impressions = 0;
+    let positive_posts = 0;
+    let negative_posts = 0;
+    let neutral_posts = 0;
+
+    if (clauseFilter !== null) {
+      // Use a single query with GROUP BY for better performance
+      const sentimentCounts = await postRepo
+        .createQueryBuilder("post")
+        .select("post.sentiment", "sentiment")
+        .addSelect("COUNT(*)", "count")
+        .addSelect("COALESCE(SUM(post.impression_count), 0)", "impressions")
+        .where({ text: clauseFilter })
+        .groupBy("post.sentiment")
+        .getRawMany();
+
+      // Map the results to our variables
+      sentimentCounts.forEach((row: { sentiment: string; count: string; impressions: string }) => {
+        const count = parseInt(row.count, 10);
+        const impressions = parseInt(row.impressions, 10);
+
+        total_posts += count;
+        total_impressions += impressions;
+
+        if (row.sentiment === "positive") {
+          positive_posts = count;
+        } else if (row.sentiment === "negative") {
+          negative_posts = count;
+        } else if (row.sentiment === "neutral") {
+          neutral_posts = count;
+        }
+      });
+    }
+
+    return {
+      data: {
+        total_posts,
+        total_impressions,
+        positive_posts,
+        negative_posts,
+        neutral_posts,
+      } as unknown as GetClauseStatisticsResponse,
+    };
+  };
+
   const checkIfClauseIsConnectedToFilter = async (id: number) => {
     const filterClauseRepo = AppDataSource.getRepository(XFilterClause);
     const filterClause = await filterClauseRepo.findOne({
@@ -199,6 +262,7 @@ export default fp(async (fastify) => {
     getAllClausesDropdown,
     createOrUpdateClause,
     getClause,
+    getClauseStatistics,
     canMakeAction,
     deleteClause,
   });
@@ -224,6 +288,7 @@ declare module "fastify" {
         operator: "AND" | "OR";
       }) => Promise<{ data: CreateOrUpdateResponse }>;
       getClause: (id: number) => Promise<{ data: GetClauseResponse }>;
+      getClauseStatistics: (id: number) => Promise<{ data: GetClauseStatisticsResponse }>;
       canMakeAction: (id: number) => Promise<{ data: canPerformActionResponse }>;
       deleteClause: (id: number) => Promise<{ data: DeleteResponse }>;
     };

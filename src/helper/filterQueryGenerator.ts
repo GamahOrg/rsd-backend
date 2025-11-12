@@ -534,12 +534,13 @@ async function buildClauseFilterFromExpression(
 /**
  * Fetch a single clause and convert it to TypeORM operator
  */
-async function fetchClauseAsTypeORM(
+export async function fetchClauseAsTypeORM(
   clauseId: number,
   fastify: FastifyInstance,
 ): Promise<FindOperator<string> | null> {
   try {
     const result = await fastify.clauseService.getClause(clauseId);
+    if (!result) return null;
 
     // Parse include and exclude clauses
     const includeClause = result.data.include_clause ?? "";
@@ -572,7 +573,6 @@ async function fetchClauseAsTypeORM(
         }
       }
     }
-
     // Combine include and exclude operators
     if (includeOperator && excludeOperator) {
       // Both include and exclude: must match include AND not match exclude
@@ -584,7 +584,6 @@ async function fetchClauseAsTypeORM(
       // Only exclude
       textOperator = excludeOperator;
     }
-
     return textOperator;
   } catch (error) {
     console.error(`Failed to fetch clause ${clauseId}:`, error);
