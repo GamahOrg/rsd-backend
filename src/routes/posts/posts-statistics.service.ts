@@ -145,10 +145,10 @@ export default fp(async (fastify) => {
       .createQueryBuilder("post")
       .leftJoin("post.user", "user")
       .select([
-        "COALESCE(SUM(post.retweet_count), 0) AS total_retweets",
-        "COALESCE(SUM(post.like_count), 0) AS total_likes",
-        "COALESCE(SUM(post.bookmark_count), 0) AS total_bookmarks",
-        "COALESCE(SUM(post.impression_count), 0) AS total_impressions",
+        "COALESCE(SUM(CAST(post.retweet_count AS BIGINT)), 0) AS total_retweets",
+        "COALESCE(SUM(CAST(post.like_count AS BIGINT)), 0) AS total_likes",
+        "COALESCE(SUM(CAST(post.bookmark_count AS BIGINT)), 0) AS total_bookmarks",
+        "COALESCE(SUM(CAST(post.impression_count AS BIGINT)), 0) AS total_impressions",
       ])
       .where(filterQuery)
       .getRawOne()) as {
