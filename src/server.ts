@@ -10,9 +10,9 @@ import { AppDataSource, initializeAppDatabase, initializeXDatabase } from "./con
 config();
 
 const fastify = Fastify({
-  // logger: {
-  //   level: process.env.NODE_ENV === "development" ? "info" : "warn",
-  // },
+  logger: {
+    level: process.env.NODE_ENV === "development" ? "info" : "warn",
+  },
   querystringParser: (str) => qs.parse(str),
 });
 
