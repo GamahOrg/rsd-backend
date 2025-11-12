@@ -1,7 +1,7 @@
 import fp from "fastify-plugin";
 import { TFilter as DataFilterType } from "../../models/types/comment.type";
 import { In, IsNull } from "typeorm";
-import { AppDataSource } from "../../config/database";
+import { XDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
 import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 import { TResponse as GetGeneralStatisticsResponse } from "./schemas/statistics/getGeneralStatistics.schema";
@@ -12,7 +12,7 @@ export type GroupBy = "day" | "month" | "quarter" | "year" | "hour";
 
 export default fp(async (fastify) => {
   const getGeneralStatistics = async (filter: DataFilterType | undefined) => {
-    const postRepo = AppDataSource.getRepository(Post);
+    const postRepo = XDataSource.getRepository(Post);
 
     // Generate all filter queries first
     const [generalFilter, postsFilter, quotesFilter, repliesFilter] = await Promise.all([
@@ -139,7 +139,7 @@ export default fp(async (fastify) => {
       fastify,
     );
 
-    const postRepo = AppDataSource.getRepository(Post);
+    const postRepo = XDataSource.getRepository(Post);
 
     const metrics = (await postRepo
       .createQueryBuilder("post")
@@ -185,7 +185,7 @@ export default fp(async (fastify) => {
   const getSentimentStatistics = async (filter?: DataFilterType) => {
     const sentiments = ["positive", "negative", "neutral", "none"] as const;
 
-    const postRepo = AppDataSource.getRepository(Post);
+    const postRepo = XDataSource.getRepository(Post);
 
     // Generate all filter queries first
     const filterQueries = await Promise.all(
