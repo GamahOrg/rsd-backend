@@ -152,7 +152,7 @@ export default fp(async (fastify) => {
     };
   };
 
-  const getClauseStatistics = async (id: number) => {
+  const updateClauseStatistics = async (id: number) => {
     const clauseRepo = AppDataSource.getRepository(XClause);
     const clauseData = await clauseRepo.findOne({
       where: { id, deleted_at: IsNull() },
@@ -201,13 +201,44 @@ export default fp(async (fastify) => {
       });
     }
 
+    clauseData.total_posts = BigInt(total_posts);
+    clauseData.total_impressions = BigInt(total_impressions);
+    clauseData.positive_posts = BigInt(positive_posts);
+    clauseData.negative_posts = BigInt(negative_posts);
+    clauseData.neutral_posts = BigInt(neutral_posts);
+    clauseData.statistics_updated_at = new Date();
+    await clauseRepo.save(clauseData);
+
     return {
       data: {
-        total_posts,
-        total_impressions,
-        positive_posts,
-        negative_posts,
-        neutral_posts,
+        ...clauseData,
+        updated_at: clauseData.statistics_updated_at?.toISOString() || null,
+      } as unknown as GetClauseStatisticsResponse,
+    };
+  };
+
+  const getClauseStatistics = async (id: number) => {
+    const clauseRepo = AppDataSource.getRepository(XClause);
+    const clauseData = await clauseRepo.findOne({
+      select: {
+        total_posts: true,
+        total_impressions: true,
+        positive_posts: true,
+        negative_posts: true,
+        neutral_posts: true,
+        statistics_updated_at: true,
+      },
+      where: { id, deleted_at: IsNull() },
+    });
+
+    if (!clauseData) {
+      throw fastify.httpErrors.notFound(`Clause with id ${id} not found`);
+    }
+
+    return {
+      data: {
+        ...clauseData,
+        updated_at: clauseData.statistics_updated_at?.toISOString() || null,
       } as unknown as GetClauseStatisticsResponse,
     };
   };
@@ -262,6 +293,7 @@ export default fp(async (fastify) => {
     getAllClausesDropdown,
     createOrUpdateClause,
     getClause,
+    updateClauseStatistics,
     getClauseStatistics,
     canMakeAction,
     deleteClause,
@@ -288,6 +320,7 @@ declare module "fastify" {
         operator: "AND" | "OR";
       }) => Promise<{ data: CreateOrUpdateResponse }>;
       getClause: (id: number) => Promise<{ data: GetClauseResponse }>;
+      updateClauseStatistics: (id: number) => Promise<{ data: GetClauseStatisticsResponse }>;
       getClauseStatistics: (id: number) => Promise<{ data: GetClauseStatisticsResponse }>;
       canMakeAction: (id: number) => Promise<{ data: canPerformActionResponse }>;
       deleteClause: (id: number) => Promise<{ data: DeleteResponse }>;

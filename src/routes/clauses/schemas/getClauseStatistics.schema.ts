@@ -12,6 +12,7 @@ const IResponse = Type.Object({
   positive_posts: Type.Number(),
   negative_posts: Type.Number(),
   neutral_posts: Type.Number(),
+  updated_at: Type.String(),
 });
 
 export type TResponse = Static<typeof IResponse>;

@@ -17,6 +17,24 @@ export class XClause extends BaseEntity {
   @Column({ type: "nvarchar", nullable: false, default: "AND" })
   operator!: "AND" | "OR";
 
+  @Column({ type: "bigint", nullable: true })
+  total_posts?: bigint;
+
+  @Column({ type: "bigint", nullable: true })
+  total_impressions?: bigint;
+
+  @Column({ type: "bigint", nullable: true })
+  positive_posts?: bigint;
+
+  @Column({ type: "bigint", nullable: true })
+  negative_posts?: bigint;
+
+  @Column({ type: "bigint", nullable: true })
+  neutral_posts?: bigint;
+
+  @Column({ type: "datetime", nullable: true })
+  statistics_updated_at?: Date;
+
   @Column({ type: "datetime", nullable: false })
   created_at?: Date;
 

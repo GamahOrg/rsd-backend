@@ -84,6 +84,17 @@ const clause: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
 
   fastify.route<getClauseStatisticsSchemaType>({
     method: "GET",
+    url: "/:id/update/statistics",
+    schema: getClauseStatisticsSchema,
+    handler: async (request) => {
+      const { id } = request.params;
+      const { data } = await fastify.clauseService.updateClauseStatistics(Number(id));
+      return data;
+    },
+  });
+
+  fastify.route<getClauseStatisticsSchemaType>({
+    method: "GET",
     url: "/:id/statistics",
     schema: getClauseStatisticsSchema,
     handler: async (request) => {
