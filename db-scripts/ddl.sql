@@ -161,6 +161,12 @@ create table social_media.x_clause
     include_clause  nvarchar(max) not null,
     exclude_clause  nvarchar(max) not null,
     operator        nvarchar(255) not null default 'AND',
+    total_posts     bigint null,
+    total_impressions bigint null,
+    positive_posts  bigint null,
+    negative_posts  bigint null,
+    neutral_posts   bigint null,
+    statistics_updated_at datetime null,
     created_at      datetime not null default getdate(),
     updated_at      datetime null,
     deleted_at      datetime null
