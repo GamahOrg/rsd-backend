@@ -1,6 +1,6 @@
 import fp from "fastify-plugin";
 import { TResponse as GetCountriesResponse } from "./schemas/getCountries.schema";
-import { AppDataSource } from "../../config/database";
+import { XDataSource } from "../../config/database";
 import { Country } from "../../database/entity/Country.entity";
 
 export default fp(async (fastify) => {
@@ -10,7 +10,7 @@ export default fp(async (fastify) => {
       return { data: JSON.parse(cached) as GetCountriesResponse };
     }
 
-    const countryRepo = AppDataSource.getRepository(Country);
+    const countryRepo = XDataSource.getRepository(Country);
     const data = await countryRepo.find();
 
     try {
