@@ -21,11 +21,20 @@ export default fp(async (fastify) => {
     return { data: data as unknown as GetKeywordsResponse, totalRecords };
   };
 
-  const getKeywordsStatistics = async (search: string, skip: number, take: number) => {
+  const getKeywordsStatistics = async (
+    search: string,
+    skip: number,
+    take: number,
+    order_by?: { field: string; direction: "asc" | "desc" },
+  ) => {
     const keywordRepo = XDataSource.getRepository(Keyword);
     const qb = keywordRepo.createQueryBuilder("keyword").select("*");
     if (search) {
       qb.where("keyword.keyword LIKE :search", { search: `${search}%` });
+    }
+    if (order_by) {
+      const direction = order_by.direction.toLowerCase() === "asc" ? "ASC" : "DESC";
+      qb.orderBy(`keyword.${order_by.field}`, direction);
     }
     const totalRecords = await qb.getCount();
     const data = await qb.skip(skip).take(take).getRawMany();
@@ -51,6 +60,7 @@ declare module "fastify" {
         search: string,
         skip: number,
         take: number,
+        order_by?: { field: string; direction: "asc" | "desc" },
       ) => Promise<{ data: GetKeywordsStatisticsResponse; totalRecords: number }>;
     };
   }

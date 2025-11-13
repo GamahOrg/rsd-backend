@@ -3,9 +3,23 @@ import { IError, TError } from "../../../helper/common";
 import { RouteGenericInterface } from "fastify";
 import { IPagination } from "../../../helper/common";
 
+const IOrderBy = Type.Object({
+  field: Type.Union([
+    Type.Literal("id"),
+    Type.Literal("keyword"),
+    Type.Literal("post_count"),
+    Type.Literal("positive_post_count"),
+    Type.Literal("negative_post_count"),
+    Type.Literal("neutral_post_count"),
+    Type.Literal("total_impression"),
+  ]),
+  direction: Type.Union([Type.Literal("asc"), Type.Literal("desc")], { default: "asc" }),
+});
+
 const IQuery = Type.Composite([
   Type.Object({
     search: Type.Optional(Type.String()),
+    order_by: Type.Optional(IOrderBy),
   }),
   IPagination,
 ]);

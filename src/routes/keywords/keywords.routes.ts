@@ -32,11 +32,17 @@ const keyword: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     schema: getKeywordsStatisticsSchema,
     handler: async (request, response) => {
       const { skip, take } = request.pagination!;
-      const { search } = request.query as { search: string };
+      const { search, field, direction } = request.query as {
+        search: string;
+        field: string;
+        direction: "asc" | "desc";
+      };
+      const order_by = { field, direction };
       const { data, totalRecords } = await fastify.keywordService.getKeywordsStatistics(
         search,
         skip,
         take,
+        order_by,
       );
       setPaginationHeaders(response, totalRecords, take);
       return data;
