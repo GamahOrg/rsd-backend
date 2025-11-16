@@ -65,10 +65,12 @@ export default fp(async (fastify) => {
         });
 
         if (!existingFilter) {
-          throw fastify.httpErrors.notFound(`Filter with id ${filter.id} not found`);
+          throw fastify.httpErrors.notFound(
+            fastify.t("filters.errors.notFound", { id: filter.id }),
+          );
         }
         if (existingFilter.type !== filter.type) {
-          throw fastify.httpErrors.badRequest("Type cannot be changed");
+          throw fastify.httpErrors.badRequest(fastify.t("filters.errors.typeCannotBeChanged"));
         }
 
         // check if the filter name already exists with the same type
@@ -81,7 +83,9 @@ export default fp(async (fastify) => {
             },
           });
           if (existingFilterWithSameName) {
-            throw fastify.httpErrors.badRequest("Filter name already exists with the same type");
+            throw fastify.httpErrors.badRequest(
+              fastify.t("filters.errors.nameAlreadyExistsWithSameType"),
+            );
           }
         }
         // add filter clauses to the filter_clauses table
@@ -104,7 +108,9 @@ export default fp(async (fastify) => {
           },
         });
         if (existingFilterWithSameName) {
-          throw fastify.httpErrors.badRequest("Filter name already exists with the same type");
+          throw fastify.httpErrors.badRequest(
+            fastify.t("filters.errors.nameAlreadyExistsWithSameType"),
+          );
         }
         data = await filterRepo.save({
           name: filter.name,
@@ -173,7 +179,7 @@ export default fp(async (fastify) => {
       where: { id, deleted_at: IsNull() },
     });
     if (!data) {
-      throw fastify.httpErrors.notFound(`Filter with id ${id} not found`);
+      throw fastify.httpErrors.notFound(fastify.t("filters.errors.notFound", { id }));
     }
     return {
       data: { ...data, filter: JSON.parse(data.filter) as TFilter } as unknown as GetFilterResponse,
@@ -186,14 +192,14 @@ export default fp(async (fastify) => {
       where: { id, deleted_at: IsNull() },
     });
     if (!existingFilter) {
-      throw fastify.httpErrors.notFound(`Filter with id ${id} not found`);
+      throw fastify.httpErrors.notFound(fastify.t("filters.errors.notFound"));
     }
     existingFilter.deleted_at = new Date();
     await filterRepo.save(existingFilter);
     return {
       data: {
         success: true,
-        message: `Filter with id ${id} deleted successfully`,
+        message: fastify.t("filters.messages.deleted"),
       } as unknown as DeleteFilterResponse,
     };
   };

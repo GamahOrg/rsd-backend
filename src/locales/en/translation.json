@@ -1,0 +1,26 @@
+{
+  "errors": {
+    "http": {
+      "internalServerError": "Internal server error",
+      "unauthorizedAccess": "Unauthorized access"
+    },
+    "validation": {
+      "errorMessage": "Validation error",
+      "required": "The {{missingProperty}} field is required.",
+      "minLength": "The {{missingProperty}} must be at least {{limit}}.",
+      "maxLength": "The {{missingProperty}} must not be greater than {{limit}}.",
+      "minItems": "The {{missingProperty}} must be at least {{limit}}.",
+      "type": "The {{missingProperty}} must be {{type}}."
+    }
+  },
+  "filters": {
+    "messages": {
+      "deleted": "Filter deleted successfully"
+    },
+    "errors": {
+      "notFound": "Filter with id {{id}} not found",
+      "typeCannotBeChanged": "Type cannot be changed",
+      "nameAlreadyExistsWithSameType": "Filter name already exists with the same type"
+    }
+  }
+}
