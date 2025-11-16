@@ -52,12 +52,24 @@ export default fp(async (fastify) => {
 
   const getAllReplies = async (post_id: string, skip: number, take: number) => {
     const replyRepo = XDataSource.getRepository(Post);
-
+    // get conversation_id from post_id
+    const conversation = await replyRepo.findOne({
+      select: {
+        conversation_id: true,
+      },
+      where: {
+        post_id,
+      },
+    });
+    if (!conversation) {
+      throw new Error("Conversation not found");
+    }
     const qb = replyRepo.createQueryBuilder("reply").setFindOptions({
       where: [
         {
           post_type: "replied_to",
-          conversation_id: post_id,
+          conversation_id: conversation.conversation_id,
+          referenced_tweet_id: post_id,
           text: And(Not(IsNull()), Not("")),
         },
       ],
