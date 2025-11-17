@@ -18,6 +18,6 @@
     "sourceMap": true,
     "types": ["node", "qs"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "src/locales/**/*.json"],
   "exclude": ["node_modules", "dist"]
 }
