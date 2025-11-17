@@ -2,6 +2,7 @@ import fp from "fastify-plugin";
 const i18next = require("i18next");
 const i18nextMiddleware = require("i18next-http-middleware");
 const Backend = require("i18next-fs-backend");
+const path = require("path");
 
 export default fp(
   async (fastify) => {
@@ -11,7 +12,8 @@ export default fp(
       .init({
         // debug: true,
         backend: {
-          loadPath: "src/locales/{{lng}}/{{ns}}.json",
+          loadPath: path.join(__dirname, "../locales/{{lng}}/{{ns}}.json"),
+          // loadPath: "src/locales/{{lng}}/{{ns}}.json",
         },
         lookupHeader: "accept-language",
         fallbackLng: "ar",
