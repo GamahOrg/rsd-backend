@@ -3,8 +3,20 @@ import { TResponse as GetUsersResponse } from "./schemas/getUsernames.schema";
 import { TResponse as GetUserResponse } from "./schemas/getUser.schema";
 import { XDataSource } from "../../config/database";
 import { User } from "../../database/entity/User.entity";
+import { TResponse as GetAllUsersResponse } from "./schemas/getAllUsers.schema";
 
 export default fp(async (fastify) => {
+  const getAllUsers = async (search: string | undefined, skip: number, take: number) => {
+    const userRepo = XDataSource.getRepository(User);
+    const qb = userRepo.createQueryBuilder("user").select("*");
+    if (search) {
+      qb.where("user.username LIKE :search", { search: `${search}%` });
+    }
+    const totalRecords = await qb.getCount();
+    const data = await qb.skip(skip).take(take).getRawMany();
+    return { data: data as unknown as GetAllUsersResponse, totalRecords };
+  };
+
   const getUsernamesByUsername = async (username: string, skip: number, take: number) => {
     const userRepo = XDataSource.getRepository(User);
 
@@ -29,6 +41,7 @@ export default fp(async (fastify) => {
 
   // Decorate the fastify instance with the userService
   fastify.decorate("userService", {
+    getAllUsers,
     getUsernamesByUsername,
     getUser,
   });
@@ -37,6 +50,11 @@ export default fp(async (fastify) => {
 declare module "fastify" {
   interface FastifyInstance {
     userService: {
+      getAllUsers: (
+        search: string | undefined,
+        skip: number,
+        take: number,
+      ) => Promise<{ data: GetAllUsersResponse; totalRecords: number }>;
       getUsernamesByUsername: (
         username: string,
         skip: number,
