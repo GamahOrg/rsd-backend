@@ -12,8 +12,18 @@ const user: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     schema: getAllUsersSchema,
     handler: async (request, response) => {
       const { skip, take } = request.pagination!;
-      const { search } = request.query as { search: string };
-      const { data, totalRecords } = await fastify.userService.getAllUsers(search, skip, take);
+      const { search, field, direction } = request.query as {
+        search: string;
+        field: string;
+        direction: "asc" | "desc";
+      };
+      const order_by = { field: field || "followers_count", direction: direction || "desc" };
+      const { data, totalRecords } = await fastify.userService.getAllUsers(
+        search,
+        order_by,
+        skip,
+        take,
+      );
       setPaginationHeaders(response, totalRecords, take);
       return data;
     },

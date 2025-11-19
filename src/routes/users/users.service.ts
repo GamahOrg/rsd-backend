@@ -6,11 +6,20 @@ import { User } from "../../database/entity/User.entity";
 import { TResponse as GetAllUsersResponse } from "./schemas/getAllUsers.schema";
 
 export default fp(async (fastify) => {
-  const getAllUsers = async (search: string | undefined, skip: number, take: number) => {
+  const getAllUsers = async (
+    search: string | undefined,
+    order_by: { field: string; direction: "asc" | "desc" },
+    skip: number,
+    take: number,
+  ) => {
     const userRepo = XDataSource.getRepository(User);
     const qb = userRepo.createQueryBuilder("user").select("*");
     if (search) {
       qb.where("user.username LIKE :search", { search: `${search}%` });
+    }
+    if (order_by) {
+      const direction = order_by.direction.toLowerCase() === "asc" ? "ASC" : "DESC";
+      qb.orderBy(`user.${order_by.field}`, direction);
     }
     const totalRecords = await qb.getCount();
     const data = await qb.skip(skip).take(take).getRawMany();
@@ -52,6 +61,8 @@ declare module "fastify" {
     userService: {
       getAllUsers: (
         search: string | undefined,
+
+        order_by: { field: string; direction: "asc" | "desc" },
         skip: number,
         take: number,
       ) => Promise<{ data: GetAllUsersResponse; totalRecords: number }>;

@@ -1,9 +1,22 @@
 import { Type, Static } from "@sinclair/typebox";
 import { IError, IPagination, TError } from "../../../helper/common";
+import { RouteGenericInterface } from "fastify";
+
+const IOrderBy = Type.Object({
+  field: Type.Union([
+    Type.Literal("user_created_at"),
+    Type.Literal("followers_count"),
+    Type.Literal("following_count"),
+    Type.Literal("tweet_count"),
+    Type.Literal("like_count"),
+  ]),
+  direction: Type.Union([Type.Literal("asc"), Type.Literal("desc")], { default: "asc" }),
+});
 
 const IQuery = Type.Composite([
   Type.Object({
     search: Type.Optional(Type.String()),
+    order_by: Type.Optional(IOrderBy),
   }),
   IPagination,
 ]);
@@ -28,8 +41,8 @@ const IResponse = Type.Array(
 
 export type TResponse = Static<typeof IResponse>;
 
-export type getAllUsersSchemaType = {
-  Querystring: TQuery;
+export type getAllUsersSchemaType = RouteGenericInterface & {
+  Query: TQuery;
   Response: TResponse;
   Error: TError;
 };
