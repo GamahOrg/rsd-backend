@@ -37,16 +37,7 @@ const user: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     },
   });
 
-  // // api to get all users with statistics
-  // fastify.route<userSchemaType>({
-  //   method: "POST",
-  //   url: "/",
-  //   schema: getUsernamesListSchemaType,
-  //   handler: async (request) => {
-  //     const { data } = await fastify.userService.getUsers(user_id);
-  //     return data;
-  //   },
-  // });
+  // api to get all users 
 
   // api to get specific user
   fastify.route<getUserInfoSchemaType>({
