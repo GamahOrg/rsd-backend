@@ -37,8 +37,6 @@ const user: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     },
   });
 
-  // api to get all users 
-
   // api to get specific user
   fastify.route<getUserInfoSchemaType>({
     method: "GET",
