@@ -36,11 +36,12 @@ export default fp(async (fastify) => {
         userRepo.count({ where: { verified_type: verifiedType } }),
       ),
     );
+    const total = government + blue + business;
     return {
       data: {
-        government: government,
-        blue: blue,
-        business: business,
+        government: toPercentage(government, total),
+        blue: toPercentage(blue, total),
+        business: toPercentage(business, total),
       },
     };
   };
