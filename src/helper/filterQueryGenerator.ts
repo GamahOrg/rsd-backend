@@ -233,7 +233,6 @@ export const generateFilterQuery = async (
     result = result.flat();
   }
 
-  console.log("result", result);
   return result;
 };
 
@@ -535,7 +534,6 @@ const expressionToTypeORM = (
   context: "text" | "accounts",
 ): FindOperator<string> => {
   if (node.type === "TERM") {
-    console.log("node.value", node);
     const likeOperator =
       context === "text"
         ? Like(`% ${escapeLikePattern(node.value)} %`)
