@@ -7,6 +7,10 @@ import {
   getVerifiedTypeStatisticsSchema,
   getVerifiedTypeStatisticsSchemaType,
 } from "./schemas/statistics/getIsVerifiedTypeStatistics.schema";
+import {
+  getUserPostsStatisticsSchema,
+  getUserPostsStatisticsSchemaType,
+} from "./schemas/statistics/GetUserPostsStatistics.schema";
 
 const usersStatistics: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.route<getIsVerifiedStatisticsSchemaType>({
@@ -25,6 +29,17 @@ const usersStatistics: FastifyPluginAsyncTypebox = async (fastify): Promise<void
     schema: getVerifiedTypeStatisticsSchema,
     handler: async () => {
       const { data } = await fastify.usersStatisticsService.getVerifiedTypeStatistics();
+      return data;
+    },
+  });
+
+  fastify.route<getUserPostsStatisticsSchemaType>({
+    method: "GET",
+    url: "/:user_id/posts/statistics",
+    schema: getUserPostsStatisticsSchema,
+    handler: async (request) => {
+      const { user_id } = request.params as { user_id: string };
+      const { data } = await fastify.usersStatisticsService.getUserPostsStatistics(user_id);
       return data;
     },
   });
