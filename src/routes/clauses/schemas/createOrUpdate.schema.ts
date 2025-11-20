@@ -6,6 +6,8 @@ const IBody = Type.Object({
   name: Type.String(),
   include_clause: Type.String(),
   exclude_clause: Type.String(),
+  include_accounts_clause: Type.Optional(Type.String()),
+  exclude_accounts_clause: Type.Optional(Type.String()),
   operator: Type.String({ enum: ["AND", "OR"], default: "AND" }),
 });
 
@@ -16,6 +18,8 @@ const IResponse = Type.Object({
   name: Type.String(),
   include_clause: Type.String(),
   exclude_clause: Type.String(),
+  include_accounts_clause: Type.Optional(Type.String()),
+  exclude_accounts_clause: Type.Optional(Type.String()),
   operator: Type.String({ enum: ["AND", "OR"], default: "AND" }),
   created_at: Type.Optional(Type.String()),
   updated_at: Type.Optional(Type.String()),

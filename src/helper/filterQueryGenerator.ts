@@ -147,9 +147,10 @@ export const generateFilterQuery = async (
   if (!filter) return {};
 
   // Build clause filter from expression tree
-  let clauseFilter: FindOperator<string> | null = null;
+  let clauseFilterResult: ClauseFilterResult | null = null;
   if (filter.post?.clauses && filter.post.clauses.clause && fastify) {
-    clauseFilter = await buildClauseFilterFromExpression(filter.post.clauses.clause, fastify);
+    clauseFilterResult = await buildClauseFilterFromExpression(filter.post.clauses.clause, fastify);
+    console.log("clauseFilterResult", clauseFilterResult);
   }
 
   const baseWhere = {
@@ -190,12 +191,49 @@ export const generateFilterQuery = async (
   }
 
   // Add clause filter to all results if it exists
-  if (clauseFilter) {
-    result = result.map((where) => ({
-      ...where,
-      text: where.text ? And(where.text, clauseFilter) : clauseFilter,
-    }));
+  if (clauseFilterResult) {
+    const { textOperator, usernameOperator, operator } = clauseFilterResult;
+
+    result = result.map((where) => {
+      const updatedWhere = { ...where };
+
+      // Apply text operator if it exists
+      if (textOperator) {
+        updatedWhere.text = where.text ? And(where.text, textOperator) : textOperator;
+      }
+
+      // Apply username operator if it exists
+      if (usernameOperator) {
+        updatedWhere.username = usernameOperator;
+      }
+
+      // If both text and username operators exist, we need to combine them based on the operator
+      if (textOperator && usernameOperator && operator === "OR") {
+        // When operator is OR, we need to create separate conditions and use TypeORM's Or
+        // However, TypeORM's Or expects complete where objects, not just field operators
+        // So we need to restructure this as an array of conditions
+        // This is handled at the query level, so we'll return both conditions
+        delete updatedWhere.text;
+        delete updatedWhere.username;
+
+        // Create two separate where objects
+        const textWhere = {
+          ...updatedWhere,
+          text: where.text ? And(where.text, textOperator) : textOperator,
+        };
+        const usernameWhere = { ...updatedWhere, username: usernameOperator };
+
+        return [textWhere, usernameWhere];
+      }
+
+      return updatedWhere;
+    });
+
+    // Flatten the result if we have OR conditions
+    result = result.flat();
   }
+
+  console.log("result", result);
   return result;
 };
 
@@ -492,21 +530,28 @@ const negateExpression = (node: ExpressionNode): ExpressionNode => {
 /**
  * Convert expression tree to TypeORM FindOperator
  */
-const expressionToTypeORM = (node: ExpressionNode): FindOperator<string> => {
+const expressionToTypeORM = (
+  node: ExpressionNode,
+  context: "text" | "accounts",
+): FindOperator<string> => {
   if (node.type === "TERM") {
-    const likeOperator = Like(`% ${escapeLikePattern(node.value)} %`);
+    console.log("node.value", node);
+    const likeOperator =
+      context === "text"
+        ? Like(`% ${escapeLikePattern(node.value)} %`)
+        : Like(`${escapeLikePattern(node.value)}`);
     return node.isNegated ? Not(likeOperator) : likeOperator;
   }
 
   if (node.type === "AND") {
-    const left = expressionToTypeORM(node.left);
-    const right = expressionToTypeORM(node.right);
+    const left = expressionToTypeORM(node.left, context);
+    const right = expressionToTypeORM(node.right, context);
     return And(left, right);
   }
 
   if (node.type === "OR") {
-    const left = expressionToTypeORM(node.left);
-    const right = expressionToTypeORM(node.right);
+    const left = expressionToTypeORM(node.left, context);
+    const right = expressionToTypeORM(node.right, context);
     return Or(left, right);
   }
 
@@ -519,7 +564,7 @@ const expressionToTypeORM = (node: ExpressionNode): FindOperator<string> => {
 async function buildClauseFilterFromExpression(
   clauseExpression: string,
   fastify: FastifyInstance,
-): Promise<FindOperator<string> | null> {
+): Promise<ClauseFilterResult | null> {
   // Parse the clause expression
   const tokens = tokenizeClauseExpression(clauseExpression);
   if (tokens.length === 0) return null;
@@ -532,35 +577,52 @@ async function buildClauseFilterFromExpression(
 }
 
 /**
+ * Result structure for clause filters
+ */
+export interface ClauseFilterResult {
+  textOperator: FindOperator<string> | null;
+  usernameOperator: FindOperator<string> | null;
+  operator: "AND" | "OR";
+}
+
+/**
  * Fetch a single clause and convert it to TypeORM operator
  */
 export async function fetchClauseAsTypeORM(
   clauseId: number,
   fastify: FastifyInstance,
-): Promise<FindOperator<string> | null> {
+): Promise<ClauseFilterResult | null> {
   try {
     const result = await fastify.clauseService.getClause(clauseId);
     if (!result) return null;
 
-    // Parse include and exclude clauses
+    // Parse include and exclude clauses for text
     const includeClause = result.data.include_clause ?? "";
     const excludeClause = result.data.exclude_clause ?? "";
 
-    let textOperator: FindOperator<string> | null = null;
+    // Parse include and exclude clauses for accounts (usernames)
+    const includeAccountsClause = result.data.include_accounts_clause ?? "";
+    const excludeAccountsClause = result.data.exclude_accounts_clause ?? "";
 
-    // Parse include clause
+    // Get the operator (AND/OR) from the clause
+    const operator: "AND" | "OR" = result.data.operator === "OR" ? "OR" : "AND";
+
+    let textOperator: FindOperator<string> | null = null;
+    let usernameOperator: FindOperator<string> | null = null;
+
+    // Parse text include clause
     let includeOperator: FindOperator<string> | null = null;
     if (includeClause.trim().length > 0) {
       const includeTokens = tokenizeClause(includeClause);
       if (includeTokens.length > 0) {
         const includeExpr = parseExpression(includeTokens);
         if (includeExpr) {
-          includeOperator = expressionToTypeORM(includeExpr);
+          includeOperator = expressionToTypeORM(includeExpr, "text");
         }
       }
     }
 
-    // Parse exclude clause
+    // Parse text exclude clause
     let excludeOperator: FindOperator<string> | null = null;
     if (excludeClause.trim().length > 0) {
       const excludeTokens = tokenizeClause(excludeClause);
@@ -569,11 +631,12 @@ export async function fetchClauseAsTypeORM(
         if (excludeExpr) {
           // Negate the entire exclude expression using De Morgan's laws
           const negatedExpr = negateExpression(excludeExpr);
-          excludeOperator = expressionToTypeORM(negatedExpr);
+          excludeOperator = expressionToTypeORM(negatedExpr, "text");
         }
       }
     }
-    // Combine include and exclude operators
+
+    // Combine text include and exclude operators
     if (includeOperator && excludeOperator) {
       // Both include and exclude: must match include AND not match exclude
       textOperator = And(includeOperator, excludeOperator);
@@ -584,7 +647,46 @@ export async function fetchClauseAsTypeORM(
       // Only exclude
       textOperator = excludeOperator;
     }
-    return textOperator;
+
+    // Parse accounts include clause
+    let includeAccountsOperator: FindOperator<string> | null = null;
+    if (includeAccountsClause.trim().length > 0) {
+      const includeTokens = tokenizeClause(includeAccountsClause);
+      if (includeTokens.length > 0) {
+        const includeExpr = parseExpression(includeTokens);
+        if (includeExpr) {
+          includeAccountsOperator = expressionToTypeORM(includeExpr, "accounts");
+        }
+      }
+    }
+
+    // Parse accounts exclude clause
+    let excludeAccountsOperator: FindOperator<string> | null = null;
+    if (excludeAccountsClause.trim().length > 0) {
+      const excludeTokens = tokenizeClause(excludeAccountsClause);
+      if (excludeTokens.length > 0) {
+        const excludeExpr = parseExpression(excludeTokens);
+        if (excludeExpr) {
+          // Negate the entire exclude expression using De Morgan's laws
+          const negatedExpr = negateExpression(excludeExpr);
+          excludeAccountsOperator = expressionToTypeORM(negatedExpr, "accounts");
+        }
+      }
+    }
+
+    // Combine username include and exclude operators
+    if (includeAccountsOperator && excludeAccountsOperator) {
+      // Both include and exclude: must match include AND not match exclude
+      usernameOperator = And(includeAccountsOperator, excludeAccountsOperator);
+    } else if (includeAccountsOperator) {
+      // Only include
+      usernameOperator = includeAccountsOperator;
+    } else if (excludeAccountsOperator) {
+      // Only exclude
+      usernameOperator = excludeAccountsOperator;
+    }
+
+    return { textOperator, usernameOperator, operator };
   } catch (error) {
     console.error(`Failed to fetch clause ${clauseId}:`, error);
     return null;
@@ -597,7 +699,7 @@ export async function fetchClauseAsTypeORM(
 async function clauseExpressionToTypeORM(
   node: ClauseExpressionNode,
   fastify: FastifyInstance,
-): Promise<FindOperator<string> | null> {
+): Promise<ClauseFilterResult | null> {
   if (node.type === "CLAUSEID") {
     return await fetchClauseAsTypeORM(node.id, fastify);
   }
@@ -605,15 +707,65 @@ async function clauseExpressionToTypeORM(
   if (node.type === "AND") {
     const left = await clauseExpressionToTypeORM(node.left, fastify);
     const right = await clauseExpressionToTypeORM(node.right, fastify);
-    if (!left || !right) return left || right;
-    return And(left, right);
+
+    if (!left && !right) return null;
+    if (!left) return right;
+    if (!right) return left;
+
+    // Combine text operators
+    let textOperator: FindOperator<string> | null = null;
+    if (left.textOperator && right.textOperator) {
+      textOperator = And(left.textOperator, right.textOperator);
+    } else if (left.textOperator) {
+      textOperator = left.textOperator;
+    } else if (right.textOperator) {
+      textOperator = right.textOperator;
+    }
+
+    // Combine username operators
+    let usernameOperator: FindOperator<string> | null = null;
+    if (left.usernameOperator && right.usernameOperator) {
+      usernameOperator = And(left.usernameOperator, right.usernameOperator);
+    } else if (left.usernameOperator) {
+      usernameOperator = left.usernameOperator;
+    } else if (right.usernameOperator) {
+      usernameOperator = right.usernameOperator;
+    }
+
+    // Use the operator from either left or right (they should be the same when combined with AND)
+    return { textOperator, usernameOperator, operator: left.operator };
   }
 
   if (node.type === "OR") {
     const left = await clauseExpressionToTypeORM(node.left, fastify);
     const right = await clauseExpressionToTypeORM(node.right, fastify);
-    if (!left || !right) return left || right;
-    return Or(left, right);
+
+    if (!left && !right) return null;
+    if (!left) return right;
+    if (!right) return left;
+
+    // Combine text operators
+    let textOperator: FindOperator<string> | null = null;
+    if (left.textOperator && right.textOperator) {
+      textOperator = Or(left.textOperator, right.textOperator);
+    } else if (left.textOperator) {
+      textOperator = left.textOperator;
+    } else if (right.textOperator) {
+      textOperator = right.textOperator;
+    }
+
+    // Combine username operators
+    let usernameOperator: FindOperator<string> | null = null;
+    if (left.usernameOperator && right.usernameOperator) {
+      usernameOperator = Or(left.usernameOperator, right.usernameOperator);
+    } else if (left.usernameOperator) {
+      usernameOperator = left.usernameOperator;
+    } else if (right.usernameOperator) {
+      usernameOperator = right.usernameOperator;
+    }
+
+    // Use the operator from either left or right (they should be the same when combined with OR)
+    return { textOperator, usernameOperator, operator: left.operator };
   }
 
   return null;

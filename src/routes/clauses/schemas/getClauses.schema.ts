@@ -7,6 +7,8 @@ const IResponse = Type.Array(
     name: Type.String(),
     include_clause_words_count: Type.Number(),
     exclude_clause_words_count: Type.Number(),
+    include_accounts_clause_accounts_count: Type.Optional(Type.Number()),
+    exclude_accounts_clause_accounts_count: Type.Optional(Type.Number()),
     created_at: Type.String(),
     updated_at: Type.String(),
   }),

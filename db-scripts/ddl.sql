@@ -161,6 +161,8 @@ create table social_media.x_clause
     include_clause  nvarchar(max) not null,
     exclude_clause  nvarchar(max) not null,
     operator        nvarchar(255) not null default 'AND',
+    include_accounts_clause nvarchar(max) null,
+    exclude_accounts_clause nvarchar(max) null,
     total_posts     bigint null,
     total_impressions bigint null,
     positive_posts  bigint null,

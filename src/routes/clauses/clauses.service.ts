@@ -82,6 +82,12 @@ export default fp(async (fastify) => {
         ...clause,
         include_clause_words_count: countWordsInClause(clause.include_clause),
         exclude_clause_words_count: countWordsInClause(clause.exclude_clause),
+        include_accounts_clause_accounts_count: clause.include_accounts_clause
+          ? countWordsInClause(clause.include_accounts_clause)
+          : 0,
+        exclude_accounts_clause_accounts_count: clause.exclude_accounts_clause
+          ? countWordsInClause(clause.exclude_accounts_clause)
+          : 0,
       };
     });
 
@@ -93,6 +99,8 @@ export default fp(async (fastify) => {
     name: string;
     include_clause: string;
     exclude_clause: string;
+    include_accounts_clause?: string;
+    exclude_accounts_clause?: string;
     operator: "AND" | "OR";
   }) => {
     const clauseRepo = AppDataSource.getRepository(XClause);
@@ -161,44 +169,74 @@ export default fp(async (fastify) => {
     if (!clauseData) {
       throw fastify.httpErrors.notFound(`Clause with id ${id} not found`);
     }
-    const clauseFilter = await fetchClauseAsTypeORM(id, fastify);
+    const clauseFilterResult = await fetchClauseAsTypeORM(id, fastify);
 
     const postRepo = XDataSource.getRepository(Post);
 
-    // Only apply the filter if clauseFilter is not null
+    // Only apply the filter if clauseFilterResult is not null
     let total_posts = 0;
     let total_impressions = 0;
     let positive_posts = 0;
     let negative_posts = 0;
     let neutral_posts = 0;
 
-    if (clauseFilter !== null) {
-      // Use a single query with GROUP BY for better performance
-      const sentimentCounts = await postRepo
-        .createQueryBuilder("post")
-        .select("post.sentiment", "sentiment")
-        .addSelect("COUNT(*)", "count")
-        .addSelect("COALESCE(SUM(post.impression_count), 0)", "impressions")
-        .where({ text: clauseFilter })
-        .groupBy("post.sentiment")
-        .getRawMany();
+    if (clauseFilterResult !== null) {
+      const { textOperator, usernameOperator, operator } = clauseFilterResult;
 
-      // Map the results to our variables
-      sentimentCounts.forEach((row: { sentiment: string; count: string; impressions: string }) => {
-        const count = parseInt(row.count, 10);
-        const impressions = parseInt(row.impressions, 10);
+      // Build where conditions based on what operators exist
+      const whereConditions: any[] = [];
 
-        total_posts += count;
-        total_impressions += impressions;
-
-        if (row.sentiment === "positive") {
-          positive_posts = count;
-        } else if (row.sentiment === "negative") {
-          negative_posts = count;
-        } else if (row.sentiment === "neutral") {
-          neutral_posts = count;
+      if (operator === "AND") {
+        // Both conditions must match - combine in a single where object
+        const whereObj: any = {};
+        if (textOperator) whereObj.text = textOperator;
+        if (usernameOperator) whereObj.username = usernameOperator;
+        if (Object.keys(whereObj).length > 0) {
+          whereConditions.push(whereObj);
         }
-      });
+      } else {
+        // OR operator - either condition can match
+        if (textOperator) whereConditions.push({ text: textOperator });
+        if (usernameOperator) whereConditions.push({ username: usernameOperator });
+      }
+
+      if (whereConditions.length > 0) {
+        // Use a single query with GROUP BY for better performance
+        const qb = postRepo
+          .createQueryBuilder("post")
+          .select("post.sentiment", "sentiment")
+          .addSelect("COUNT(*)", "count")
+          .addSelect("COALESCE(SUM(post.impression_count), 0)", "impressions");
+
+        // Apply where conditions
+        if (whereConditions.length === 1) {
+          qb.where(whereConditions[0]);
+        } else {
+          // Multiple conditions with OR
+          qb.where(whereConditions);
+        }
+
+        const sentimentCounts = await qb.groupBy("post.sentiment").getRawMany();
+
+        // Map the results to our variables
+        sentimentCounts.forEach(
+          (row: { sentiment: string; count: string; impressions: string }) => {
+            const count = parseInt(row.count, 10);
+            const impressions = parseInt(row.impressions, 10);
+
+            total_posts += count;
+            total_impressions += impressions;
+
+            if (row.sentiment === "positive") {
+              positive_posts = count;
+            } else if (row.sentiment === "negative") {
+              negative_posts = count;
+            } else if (row.sentiment === "neutral") {
+              neutral_posts = count;
+            }
+          },
+        );
+      }
     }
 
     clauseData.total_posts = BigInt(total_posts);
@@ -317,6 +355,8 @@ declare module "fastify" {
         name: string;
         include_clause: string;
         exclude_clause: string;
+        include_accounts_clause?: string;
+        exclude_accounts_clause?: string;
         operator: "AND" | "OR";
       }) => Promise<{ data: CreateOrUpdateResponse }>;
       getClause: (id: number) => Promise<{ data: GetClauseResponse }>;

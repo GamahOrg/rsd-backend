@@ -17,6 +17,12 @@ export class XClause extends BaseEntity {
   @Column({ type: "nvarchar", nullable: false, default: "AND" })
   operator!: "AND" | "OR";
 
+  @Column({ type: "nvarchar", nullable: true })
+  include_accounts_clause?: string;
+
+  @Column({ type: "nvarchar", nullable: true })
+  exclude_accounts_clause?: string;
+
   @Column({ type: "bigint", nullable: true })
   total_posts?: bigint;
 
