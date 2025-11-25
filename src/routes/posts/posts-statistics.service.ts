@@ -15,50 +15,26 @@ export default fp(async (fastify) => {
     const postRepo = XDataSource.getRepository(Post);
 
     // Generate all filter queries first
-    const [generalFilter, postsFilter, quotesFilter, repliesFilter] = await Promise.all([
-      generateFilterQuery(
-        filter as Filter,
-        {
-          post_type: In(["post", "quote", "replied_to"]),
-        } as BaseFilter,
-        fastify,
-      ),
-      generateFilterQuery(
-        filter as Filter,
-        {
-          post_type: "post",
-        } as BaseFilter,
-        fastify,
-      ),
-      generateFilterQuery(
-        filter as Filter,
-        {
-          post_type: "quote",
-        } as BaseFilter,
-        fastify,
-      ),
-      generateFilterQuery(
-        filter as Filter,
-        {
-          post_type: "replied_to",
-        } as BaseFilter,
-        fastify,
-      ),
-    ]);
+    const generalFilter = await generateFilterQuery(filter as Filter, {} as BaseFilter, fastify);
 
-    const [generalCount, postsCount, quotesCount, repliesCount] = await Promise.all([
-      postRepo.count({ where: generalFilter }),
-      postRepo.count({ where: postsFilter }),
-      postRepo.count({ where: quotesFilter }),
-      postRepo.count({ where: repliesFilter }),
-    ]);
+    const qb = postRepo
+      .createQueryBuilder("post")
+      .select([
+        "SUM(CASE WHEN post.post_type = 'post' THEN 1 ELSE 0 END) AS posts_count",
+        "SUM(CASE WHEN post.post_type = 'quote' THEN 1 ELSE 0 END) AS quotes_count",
+        "SUM(CASE WHEN post.post_type = 'replied_to' THEN 1 ELSE 0 END) AS replies_count",
+        "SUM(CASE WHEN post.post_type = 'post' OR post.post_type = 'quote' OR post.post_type = 'replied_to' THEN 1 ELSE 0 END) AS general_count",
+      ]);
+
+    qb.where(generalFilter);
+    const result = await qb.getRawOne();
 
     return {
       data: {
-        general: generalCount,
-        quote: quotesCount,
-        replies: repliesCount,
-        posts: postsCount,
+        general: parseInt(result?.general_count || "0", 10),
+        quote: parseInt(result?.quotes_count || "0", 10),
+        replies: parseInt(result?.replies_count || "0", 10),
+        posts: parseInt(result?.posts_count || "0", 10),
       },
     };
   };
@@ -183,36 +159,35 @@ export default fp(async (fastify) => {
   };
 
   const getSentimentStatistics = async (filter?: DataFilterType) => {
-    const sentiments = ["positive", "negative", "neutral", "none"] as const;
-
     const postRepo = XDataSource.getRepository(Post);
 
     // Generate all filter queries first
-    const filterQueries = await Promise.all(
-      sentiments.map((sentiment) =>
-        generateFilterQuery(
-          filter as Filter,
-          {
-            sentiment: sentiment === "none" ? IsNull() : sentiment,
-          },
-          fastify,
-        ),
-      ),
-    );
+    const filterQuery = await generateFilterQuery(filter as Filter, {}, fastify);
 
-    const counts = await Promise.all(
-      filterQueries.map((filterQuery) => postRepo.count({ where: filterQuery })),
-    );
+    const qb = postRepo
+      .createQueryBuilder("post")
+      .select([
+        "SUM(CASE WHEN post.sentiment = 'positive' THEN 1 ELSE 0 END) AS positive_count",
+        "SUM(CASE WHEN post.sentiment = 'negative' THEN 1 ELSE 0 END) AS negative_count",
+        "SUM(CASE WHEN post.sentiment = 'neutral' THEN 1 ELSE 0 END) AS neutral_count",
+        "SUM(CASE WHEN post.sentiment IS NULL THEN 1 ELSE 0 END) AS none_count",
+      ]);
 
-    const [positive, negative, neutral, none] = counts;
-    const total = positive + negative + neutral + none;
+    qb.where(filterQuery);
+    const result = await qb.getRawOne();
+
+    const total =
+      parseInt(result?.positive_count || "0", 10) +
+      parseInt(result?.negative_count || "0", 10) +
+      parseInt(result?.neutral_count || "0", 10) +
+      parseInt(result?.none_count || "0", 10);
 
     return {
       data: {
-        positive: toPercentage(positive, total),
-        negative: toPercentage(negative, total),
-        neutral: toPercentage(neutral, total),
-        none: toPercentage(none, total),
+        positive: toPercentage(parseInt(result?.positive_count || "0", 10), total),
+        negative: toPercentage(parseInt(result?.negative_count || "0", 10), total),
+        neutral: toPercentage(parseInt(result?.neutral_count || "0", 10), total),
+        none: toPercentage(parseInt(result?.none_count || "0", 10), total),
       },
     };
   };

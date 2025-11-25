@@ -11,48 +11,51 @@ import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQuer
 
 export default fp(async (fastify) => {
   const getIsVerifiedStatistics = async () => {
-    const verifiedTypes = ["verified", "unverified"] as const;
-
     const userRepo = XDataSource.getRepository(User);
 
-    // Generate all filter queries first
-    const filterQueries = verifiedTypes.map((verifiedType) => ({
-      is_verified: verifiedType === "verified",
-    }));
+    const qb = userRepo
+      .createQueryBuilder("user")
+      .select([
+        "SUM(CASE WHEN user.is_verified = 1 THEN 1 ELSE 0 END) AS verified_count",
+        "SUM(CASE WHEN user.is_verified = 0 THEN 1 ELSE 0 END) AS unverified_count",
+      ]);
 
-    const counts = await Promise.all(
-      filterQueries.map((filterQuery) =>
-        userRepo.count({
-          where: { ...filterQuery, tweet_count: MoreThan(0), like_count: MoreThan(0) },
-        }),
-      ),
-    );
-    const [verified, unverified] = counts;
-    const total = verified + unverified;
+    qb.where({ tweet_count: MoreThan(0), like_count: MoreThan(0) });
+
+    const result = await qb.getRawOne();
+    const total =
+      parseInt(result?.verified_count || "0", 10) + parseInt(result?.unverified_count || "0", 10);
 
     return {
       data: {
-        verified: toPercentage(verified, total),
-        unverified: toPercentage(unverified, total),
+        verified: toPercentage(parseInt(result?.verified_count || "0", 10), total),
+        unverified: toPercentage(parseInt(result?.unverified_count || "0", 10), total),
       },
     };
   };
   const getVerifiedTypeStatistics = async () => {
-    const verifiedTypes = ["government", "blue", "business"] as const;
     const userRepo = XDataSource.getRepository(User);
-    const [government, blue, business] = await Promise.all(
-      verifiedTypes.map((verifiedType) =>
-        userRepo.count({
-          where: { verified_type: verifiedType, tweet_count: MoreThan(0), like_count: MoreThan(0) },
-        }),
-      ),
-    );
-    const total = government + blue + business;
+
+    const qb = userRepo
+      .createQueryBuilder("user")
+      .select([
+        "SUM(CASE WHEN user.verified_type = 'government' THEN 1 ELSE 0 END) AS government_count",
+        "SUM(CASE WHEN user.verified_type = 'blue' THEN 1 ELSE 0 END) AS blue_count",
+        "SUM(CASE WHEN user.verified_type = 'business' THEN 1 ELSE 0 END) AS business_count",
+      ]);
+
+    qb.where({ tweet_count: MoreThan(0), like_count: MoreThan(0) });
+
+    const result = await qb.getRawOne();
+    const total =
+      parseInt(result?.government_count || "0", 10) +
+      parseInt(result?.blue_count || "0", 10) +
+      parseInt(result?.business_count || "0", 10);
     return {
       data: {
-        government: toPercentage(government, total),
-        blue: toPercentage(blue, total),
-        business: toPercentage(business, total),
+        government: toPercentage(parseInt(result?.government_count || "0", 10), total),
+        blue: toPercentage(parseInt(result?.blue_count || "0", 10), total),
+        business: toPercentage(parseInt(result?.business_count || "0", 10), total),
       },
     };
   };

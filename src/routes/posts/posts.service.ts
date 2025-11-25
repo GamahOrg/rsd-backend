@@ -13,7 +13,6 @@ export default fp(async (fastify) => {
     const whereClause = await generateFilterQuery(
       filter as Filter,
       {
-        post_type: In(["post", "quote", "replied_to"]),
         text: And(Not(IsNull()), Not("")),
       } as BaseFilter,
       fastify,
