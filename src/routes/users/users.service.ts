@@ -14,6 +14,9 @@ export default fp(async (fastify) => {
   ) => {
     const userRepo = XDataSource.getRepository(User);
     const qb = userRepo.createQueryBuilder("user").select("*");
+    qb.where(
+      "user.tweet_count IS NOT NULL AND user.tweet_count > 0 and user.like_count IS NOT NULL AND user.like_count > 0",
+    );
     if (search) {
       qb.where("user.username LIKE :search", { search: `${search}%` });
     }

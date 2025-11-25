@@ -201,6 +201,7 @@ create table social_media.x_filter_clauses
     clause_id   bigint not null
         constraint FK_filter_clauses_clause
             references social_media.x_clause (id)
-            on delete cascade
+            on delete cascade,
+    deleted_at   datetime null
 )
 go

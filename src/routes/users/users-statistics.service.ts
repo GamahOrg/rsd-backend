@@ -5,6 +5,7 @@ import { User } from "../../database/entity/User.entity";
 import { TResponse as GetVerifiedTypeStatisticsResponse } from "./schemas/statistics/getIsVerifiedTypeStatistics.schema";
 import { Post } from "../../database/entity/Post.entity";
 import { TResponse as GetUserPostsStatisticsResponse } from "./schemas/statistics/GetUserPostsStatistics.schema";
+import { MoreThan } from "typeorm";
 
 export default fp(async (fastify) => {
   const getIsVerifiedStatistics = async () => {
@@ -18,7 +19,11 @@ export default fp(async (fastify) => {
     }));
 
     const counts = await Promise.all(
-      filterQueries.map((filterQuery) => userRepo.count({ where: filterQuery })),
+      filterQueries.map((filterQuery) =>
+        userRepo.count({
+          where: { ...filterQuery, tweet_count: MoreThan(0), like_count: MoreThan(0) },
+        }),
+      ),
     );
     const [verified, unverified] = counts;
     const total = verified + unverified;
@@ -35,7 +40,9 @@ export default fp(async (fastify) => {
     const userRepo = XDataSource.getRepository(User);
     const [government, blue, business] = await Promise.all(
       verifiedTypes.map((verifiedType) =>
-        userRepo.count({ where: { verified_type: verifiedType } }),
+        userRepo.count({
+          where: { verified_type: verifiedType, tweet_count: MoreThan(0), like_count: MoreThan(0) },
+        }),
       ),
     );
     const total = government + blue + business;
