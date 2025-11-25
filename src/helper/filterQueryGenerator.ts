@@ -150,7 +150,6 @@ export const generateFilterQuery = async (
   let clauseFilterResult: ClauseFilterResult | null = null;
   if (filter.post?.clauses && filter.post.clauses.clause && fastify) {
     clauseFilterResult = await buildClauseFilterFromExpression(filter.post.clauses.clause, fastify);
-    console.log("clauseFilterResult", clauseFilterResult);
   }
 
   const baseWhere = {

@@ -149,7 +149,7 @@ export default fp(async (fastify) => {
 
     // Get existing filter clauses
     const existingFilterClauses = await filterClauseRepo.find({
-      where: { filter_id: filterId },
+      where: { filter_id: filterId, deleted_at: IsNull() },
     });
 
     const existingClauseIds = existingFilterClauses.map((fc: XFilterClause) => fc.clause_id);
@@ -159,7 +159,7 @@ export default fp(async (fastify) => {
       (fc: XFilterClause) => !clauseIds.includes(fc.clause_id),
     );
     if (clausesToDelete.length > 0) {
-      await filterClauseRepo.remove(clausesToDelete);
+      await filterClauseRepo.softRemove(clausesToDelete);
     }
 
     // Add new clauses
@@ -194,8 +194,17 @@ export default fp(async (fastify) => {
     if (!existingFilter) {
       throw fastify.httpErrors.notFound(fastify.t("filters.errors.notFound"));
     }
-    existingFilter.deleted_at = new Date();
-    await filterRepo.save(existingFilter);
+    await filterRepo.softRemove(existingFilter);
+
+    // delete filter clauses
+    const filterClauseRepo = AppDataSource.getRepository(XFilterClause);
+    const existingFilterClauses = await filterClauseRepo.find({
+      where: { filter_id: id, deleted_at: IsNull() },
+    });
+    if (existingFilterClauses.length > 0) {
+      await filterClauseRepo.softRemove(existingFilterClauses);
+    }
+
     return {
       data: {
         success: true,

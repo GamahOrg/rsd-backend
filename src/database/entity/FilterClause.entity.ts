@@ -1,4 +1,4 @@
-import { BaseEntity, Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { BaseEntity, Entity, PrimaryGeneratedColumn, Column, DeleteDateColumn } from "typeorm";
 
 @Entity({ name: "x_filter_clauses", schema: "social_media" })
 export class XFilterClause extends BaseEntity {
@@ -10,4 +10,7 @@ export class XFilterClause extends BaseEntity {
 
   @Column({ type: "bigint", nullable: false })
   clause_id!: number;
+
+  @DeleteDateColumn({ type: "datetime", nullable: true })
+  deleted_at!: Date;
 }

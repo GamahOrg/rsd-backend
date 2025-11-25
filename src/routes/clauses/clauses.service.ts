@@ -286,6 +286,7 @@ export default fp(async (fastify) => {
     const filterClause = await filterClauseRepo.findOne({
       where: {
         clause_id: id,
+        deleted_at: IsNull(),
       },
     });
     return filterClause ? true : false;
@@ -315,8 +316,7 @@ export default fp(async (fastify) => {
     }
 
     // delete the clause
-    existingClause.deleted_at = new Date();
-    await clauseRepo.save(existingClause);
+    await clauseRepo.softRemove(existingClause);
     return {
       data: {
         success: true,

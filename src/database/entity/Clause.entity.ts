@@ -1,4 +1,4 @@
-import { BaseEntity, Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { BaseEntity, Entity, PrimaryGeneratedColumn, Column, DeleteDateColumn } from "typeorm";
 
 @Entity({ name: "x_clause", schema: "social_media" })
 export class XClause extends BaseEntity {
@@ -47,6 +47,6 @@ export class XClause extends BaseEntity {
   @Column({ type: "datetime", nullable: true })
   updated_at?: Date;
 
-  @Column({ type: "datetime", nullable: true })
+  @DeleteDateColumn({ type: "datetime", nullable: true })
   deleted_at?: Date;
 }
