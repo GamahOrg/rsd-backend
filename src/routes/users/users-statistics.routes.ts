@@ -34,12 +34,13 @@ const usersStatistics: FastifyPluginAsyncTypebox = async (fastify): Promise<void
   });
 
   fastify.route<getUserPostsStatisticsSchemaType>({
-    method: "GET",
+    method: "POST",
     url: "/:user_id/posts/statistics",
     schema: getUserPostsStatisticsSchema,
     handler: async (request) => {
       const { user_id } = request.params as { user_id: string };
-      const { data } = await fastify.usersStatisticsService.getUserPostsStatistics(user_id);
+      const { filter } = request.body;
+      const { data } = await fastify.usersStatisticsService.getUserPostsStatistics(user_id, filter);
       return data;
     },
   });

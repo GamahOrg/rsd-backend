@@ -6,6 +6,8 @@ import { TResponse as GetVerifiedTypeStatisticsResponse } from "./schemas/statis
 import { Post } from "../../database/entity/Post.entity";
 import { TResponse as GetUserPostsStatisticsResponse } from "./schemas/statistics/GetUserPostsStatistics.schema";
 import { MoreThan } from "typeorm";
+import { TFilter as dataFilterType } from "../../models/types/comment.type";
+import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 
 export default fp(async (fastify) => {
   const getIsVerifiedStatistics = async () => {
@@ -58,31 +60,32 @@ export default fp(async (fastify) => {
   const toPercentage = (count: number, total: number) =>
     total > 0 ? Math.round((count / total) * 10000) / 100 : 0; // rounded to 2 decimals
 
-  const getUserPostsStatistics = async (user_id: string) => {
+  const getUserPostsStatistics = async (user_id: string, filter: dataFilterType) => {
+    const whereClause = await generateFilterQuery(
+      filter as Filter,
+      { user_id: user_id } as BaseFilter,
+      fastify,
+    );
+
     const postRepo = XDataSource.getRepository(Post);
 
-    // Execute all counts in parallel at the database level
-    const [
-      positive_posts_count,
-      negative_posts_count,
-      neutral_posts_count,
-      quotes_count,
-      retweets_count,
-    ] = await Promise.all([
-      postRepo.count({ where: { user_id, sentiment: "positive" } }),
-      postRepo.count({ where: { user_id, sentiment: "negative" } }),
-      postRepo.count({ where: { user_id, sentiment: "neutral" } }),
-      postRepo.count({ where: { user_id, post_type: "quote" } }),
-      postRepo.count({ where: { user_id, post_type: "retweet" } }),
-    ]);
+    const qb = postRepo
+      .createQueryBuilder("post")
+      .select([
+        "SUM(CASE WHEN post.sentiment = 'positive' THEN 1 ELSE 0 END) AS positive_posts_count",
+        "SUM(CASE WHEN post.sentiment = 'negative' THEN 1 ELSE 0 END) AS negative_posts_count",
+        "SUM(CASE WHEN post.sentiment = 'neutral' THEN 1 ELSE 0 END) AS neutral_posts_count",
+      ]);
+
+    qb.where(whereClause);
+
+    const result = await qb.getRawOne();
 
     return {
       data: {
-        positive_posts_count,
-        negative_posts_count,
-        neutral_posts_count,
-        quotes_count,
-        retweets_count,
+        positive_posts_count: parseInt(result?.positive_posts_count || "0", 10),
+        negative_posts_count: parseInt(result?.negative_posts_count || "0", 10),
+        neutral_posts_count: parseInt(result?.neutral_posts_count || "0", 10),
       },
     };
   };
@@ -101,6 +104,7 @@ declare module "fastify" {
       getVerifiedTypeStatistics: () => Promise<{ data: GetVerifiedTypeStatisticsResponse }>;
       getUserPostsStatistics: (
         user_id: string,
+        filter: dataFilterType,
       ) => Promise<{ data: GetUserPostsStatisticsResponse }>;
     };
   }
