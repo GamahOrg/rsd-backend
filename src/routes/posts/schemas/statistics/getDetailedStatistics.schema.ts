@@ -22,6 +22,7 @@ const IResponse = Type.Object({
     Type.Object({
       hour: Type.Optional(Type.Number()),
       day: Type.Optional(Type.Number()),
+      week: Type.Optional(Type.Number()),
       month: Type.Optional(Type.Number()),
       quarter: Type.Optional(Type.Number()),
       year: Type.Optional(Type.Number()),
