@@ -8,7 +8,7 @@ import { TResponse as GetGeneralStatisticsResponse } from "./schemas/statistics/
 import { TResponse as GetAllDetailedStatisticsResponse } from "./schemas/statistics/getDetailedStatistics.schema";
 import { TResponse as GetSentimentStatisticsResponse } from "./schemas/statistics/getSentimentStatistics.schema";
 
-export type GroupBy = "day" | "month" | "quarter" | "year" | "hour";
+export type GroupBy = "day" | "month" | "quarter" | "year" | "hour" | "week";
 
 export default fp(async (fastify) => {
   const getGeneralStatistics = async (filter: DataFilterType | undefined) => {
@@ -64,6 +64,15 @@ export default fp(async (fastify) => {
           select: ["DATEPART(YEAR, post.posted_at) AS year"],
           group: ["DATEPART(YEAR, post.posted_at)"],
           order: ["year"],
+        };
+      case "week":
+        return {
+          select: [
+            "DATEPART(WEEK, post.posted_at) AS week",
+            "DATEPART(YEAR, post.posted_at) AS year",
+          ],
+          group: ["DATEPART(WEEK, post.posted_at)", "DATEPART(YEAR, post.posted_at)"],
+          order: ["year", "week"],
         };
       case "hour":
         return {
