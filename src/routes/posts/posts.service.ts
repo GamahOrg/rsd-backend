@@ -14,6 +14,7 @@ export default fp(async (fastify) => {
       filter as Filter,
       {
         text: And(Not(IsNull()), Not("")),
+        post_type: Not("retweet"),
       } as BaseFilter,
       fastify,
     );
