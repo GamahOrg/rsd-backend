@@ -83,9 +83,21 @@ const buildNumberRangeFilter = (field: string, range: NumberRange) => {
 const buildDateRangeFilter = (field: string, range?: DateRange) => {
   if (!range) return {};
 
-  const fromDate = range.from ? new Date(range.from) : undefined;
-  const toDate = range.to ? new Date(range.to) : undefined;
-
+  // Ensure dates are treated as UTC by appending 'Z' if no timezone is specified
+  const fromDate = range.from
+    ? new Date(
+        range.from.includes("Z") || range.from.includes("+") || range.from.includes("-", 10)
+          ? range.from
+          : range.from + "Z",
+      )
+    : undefined;
+  const toDate = range.to
+    ? new Date(
+        range.to.includes("Z") || range.to.includes("+") || range.to.includes("-", 10)
+          ? range.to
+          : range.to + "Z",
+      )
+    : undefined;
   if (isDefined(fromDate) && isDefined(toDate)) {
     return { [field]: Between(fromDate, toDate) };
   }
