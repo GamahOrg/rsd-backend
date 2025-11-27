@@ -3,7 +3,7 @@ import { TResponse as GetAllPostsResponse } from "./schemas/getPosts.schema";
 import { TResponse as GetAllRepliesResponse } from "./schemas/getReplies.schema";
 import { XDataSource } from "../../config/database";
 import { Post } from "../../database/entity/Post.entity";
-import { In, Not, IsNull, And } from "typeorm";
+import { In, Not, IsNull, And, Raw } from "typeorm";
 import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 import { TResponse as GetPostResponse } from "./schemas/getPost.schema";
 import { TFilter as dataFilterType } from "../../models/types/comment.type";
@@ -13,7 +13,10 @@ export default fp(async (fastify) => {
     const whereClause = await generateFilterQuery(
       filter as Filter,
       {
-        text: And(Not(IsNull()), Not("")),
+        text: And(
+          Not(IsNull()),
+          Raw((alias) => `LEN(${alias}) > 0`),
+        ),
         post_type: Not("retweet"),
       } as BaseFilter,
       fastify,
@@ -70,7 +73,10 @@ export default fp(async (fastify) => {
           post_type: "replied_to",
           conversation_id: conversation.conversation_id,
           referenced_tweet_id: post_id,
-          text: And(Not(IsNull()), Not("")),
+          text: And(
+            Not(IsNull()),
+            Raw((alias) => `LEN(${alias}) > 0`),
+          ),
         },
       ],
       relations: { user: true },
@@ -89,7 +95,10 @@ export default fp(async (fastify) => {
     const data = await postRepo.findOne({
       where: {
         post_id,
-        text: And(Not(IsNull()), Not("")),
+        text: And(
+          Not(IsNull()),
+          Raw((alias) => `LEN(${alias}) > 0`),
+        ),
       },
       relations: { user: true, country: true, referenced_post: { user: true } },
     });
