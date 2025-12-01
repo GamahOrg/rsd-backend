@@ -5,7 +5,7 @@ import { User } from "../../database/entity/User.entity";
 import { TResponse as GetVerifiedTypeStatisticsResponse } from "./schemas/statistics/getIsVerifiedTypeStatistics.schema";
 import { Post } from "../../database/entity/Post.entity";
 import { TResponse as GetUserPostsStatisticsResponse } from "./schemas/statistics/GetUserPostsStatistics.schema";
-import { MoreThan } from "typeorm";
+import { MoreThan, Not } from "typeorm";
 import { TFilter as dataFilterType } from "../../models/types/comment.type";
 import { BaseFilter, Filter, generateFilterQuery } from "../../helper/filterQueryGenerator";
 
@@ -66,7 +66,7 @@ export default fp(async (fastify) => {
   const getUserPostsStatistics = async (user_id: string, filter: dataFilterType) => {
     const whereClause = await generateFilterQuery(
       filter as Filter,
-      { user_id: user_id } as BaseFilter,
+      { user_id: user_id, post_type: Not("retweet") } as BaseFilter,
       fastify,
     );
 
@@ -78,6 +78,7 @@ export default fp(async (fastify) => {
         "SUM(CASE WHEN post.sentiment = 'positive' THEN 1 ELSE 0 END) AS positive_posts_count",
         "SUM(CASE WHEN post.sentiment = 'negative' THEN 1 ELSE 0 END) AS negative_posts_count",
         "SUM(CASE WHEN post.sentiment = 'neutral' THEN 1 ELSE 0 END) AS neutral_posts_count",
+        "SUM(CASE WHEN post.sentiment IS NULL THEN 1 ELSE 0 END) AS undefined_posts_count",
       ]);
 
     qb.where(whereClause);
@@ -89,6 +90,7 @@ export default fp(async (fastify) => {
         positive_posts_count: parseInt(result?.positive_posts_count || "0", 10),
         negative_posts_count: parseInt(result?.negative_posts_count || "0", 10),
         neutral_posts_count: parseInt(result?.neutral_posts_count || "0", 10),
+        undefined_posts_count: parseInt(result?.undefined_posts_count || "0", 10),
       },
     };
   };

@@ -17,6 +17,7 @@ const IResponse = Type.Object({
   positive_posts_count: Type.Number(),
   negative_posts_count: Type.Number(),
   neutral_posts_count: Type.Number(),
+  undefined_posts_count: Type.Number(),
 });
 
 export type TResponse = Static<typeof IResponse>;
