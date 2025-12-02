@@ -3,19 +3,20 @@ import { MigrationInterface, QueryRunner } from "typeorm";
 export class CreateFilterTable1731171700000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
-      CREATE TABLE dbo.filter (
-        id BIGINT IDENTITY(1,1) PRIMARY KEY,
-        name NVARCHAR(255) NOT NULL,
-        type VARCHAR(50) NOT NULL,
-        filter NVARCHAR(MAX) NOT NULL,
-        created_at DATETIME NOT NULL DEFAULT GETDATE(),
-        updated_at DATETIME NULL,
-        deleted_at DATETIME NULL
-      )
+      CREATE TABLE social_media.x_filter (
+        id bigint IDENTITY(1,1) NOT NULL,
+        name nvarchar(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+        [type] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+        [filter] nvarchar(MAX) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+        created_at datetime DEFAULT getdate() NOT NULL,
+        updated_at datetime NULL,
+        deleted_at datetime NULL,
+        CONSTRAINT PK__filter__3213E83FB3B77CBB PRIMARY KEY (id)
+      );
     `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP TABLE dbo.filter`);
+    await queryRunner.query(`DROP TABLE social_media.x_filter`);
   }
 }
