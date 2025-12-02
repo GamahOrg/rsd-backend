@@ -20,7 +20,7 @@ export default fp(async (fastify) => {
         "SUM(CASE WHEN user.is_verified = 0 THEN 1 ELSE 0 END) AS unverified_count",
       ]);
 
-    qb.where({ tweet_count: MoreThan(0), like_count: MoreThan(0) });
+    qb.where({ total_post_inc_keyword: MoreThan(0) });
 
     const result = await qb.getRawOne();
     const total =
@@ -44,7 +44,7 @@ export default fp(async (fastify) => {
         "SUM(CASE WHEN user.verified_type = 'business' THEN 1 ELSE 0 END) AS business_count",
       ]);
 
-    qb.where({ tweet_count: MoreThan(0), like_count: MoreThan(0) });
+    qb.where({ total_post_inc_keyword: MoreThan(0) });
 
     const result = await qb.getRawOne();
     const total =
