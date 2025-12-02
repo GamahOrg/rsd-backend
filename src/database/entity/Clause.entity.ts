@@ -23,6 +23,12 @@ export class XClause extends BaseEntity {
   @Column({ type: "nvarchar", nullable: true })
   exclude_accounts_clause?: string;
 
+  @Column({ type: "nvarchar", nullable: true })
+  include_to_accounts_clause?: string;
+
+  @Column({ type: "nvarchar", nullable: true })
+  exclude_to_accounts_clause?: string;
+
   @Column({ type: "bigint", nullable: true })
   total_posts?: bigint;
 

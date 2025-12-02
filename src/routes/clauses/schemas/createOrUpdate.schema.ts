@@ -8,6 +8,8 @@ const IBody = Type.Object({
   exclude_clause: Type.String(),
   include_accounts_clause: Type.Optional(Type.String()),
   exclude_accounts_clause: Type.Optional(Type.String()),
+  include_to_accounts_clause: Type.Optional(Type.String()),
+  exclude_to_accounts_clause: Type.Optional(Type.String()),
   operator: Type.String({ enum: ["AND", "OR"], default: "AND" }),
 });
 
@@ -20,6 +22,8 @@ const IResponse = Type.Object({
   exclude_clause: Type.String(),
   include_accounts_clause: Type.Optional(Type.String()),
   exclude_accounts_clause: Type.Optional(Type.String()),
+  include_to_accounts_clause: Type.Optional(Type.String()),
+  exclude_to_accounts_clause: Type.Optional(Type.String()),
   operator: Type.String({ enum: ["AND", "OR"], default: "AND" }),
   created_at: Type.Optional(Type.String()),
   updated_at: Type.Optional(Type.String()),

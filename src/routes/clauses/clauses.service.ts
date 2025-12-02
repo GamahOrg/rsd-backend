@@ -88,6 +88,12 @@ export default fp(async (fastify) => {
         exclude_accounts_clause_accounts_count: clause.exclude_accounts_clause
           ? countWordsInClause(clause.exclude_accounts_clause)
           : 0,
+        include_to_accounts_clause_accounts_count: clause.include_to_accounts_clause
+          ? countWordsInClause(clause.include_to_accounts_clause)
+          : 0,
+        exclude_to_accounts_clause_accounts_count: clause.exclude_to_accounts_clause
+          ? countWordsInClause(clause.exclude_to_accounts_clause)
+          : 0,
       };
     });
 
@@ -101,6 +107,8 @@ export default fp(async (fastify) => {
     exclude_clause: string;
     include_accounts_clause?: string;
     exclude_accounts_clause?: string;
+    include_to_accounts_clause?: string;
+    exclude_to_accounts_clause?: string;
     operator: "AND" | "OR";
   }) => {
     const clauseRepo = AppDataSource.getRepository(XClause);
@@ -181,23 +189,27 @@ export default fp(async (fastify) => {
     let neutral_posts = 0;
 
     if (clauseFilterResult !== null) {
-      const { textOperator, usernameOperator, operator } = clauseFilterResult;
+      const { textOperator, usernameOperator, replyToUsernameOperator, operator } =
+        clauseFilterResult;
 
       // Build where conditions based on what operators exist
       const whereConditions: any[] = [];
 
       if (operator === "AND") {
-        // Both conditions must match - combine in a single where object
+        // All conditions must match - combine in a single where object
         const whereObj: any = {};
         if (textOperator) whereObj.text = textOperator;
         if (usernameOperator) whereObj.username = usernameOperator;
+        if (replyToUsernameOperator) whereObj.reply_to_username = replyToUsernameOperator;
         if (Object.keys(whereObj).length > 0) {
           whereConditions.push(whereObj);
         }
       } else {
-        // OR operator - either condition can match
+        // OR operator - any condition can match
         if (textOperator) whereConditions.push({ text: textOperator });
         if (usernameOperator) whereConditions.push({ username: usernameOperator });
+        if (replyToUsernameOperator)
+          whereConditions.push({ reply_to_username: replyToUsernameOperator });
       }
 
       if (whereConditions.length > 0) {
@@ -357,6 +369,8 @@ declare module "fastify" {
         exclude_clause: string;
         include_accounts_clause?: string;
         exclude_accounts_clause?: string;
+        include_to_accounts_clause?: string;
+        exclude_to_accounts_clause?: string;
         operator: "AND" | "OR";
       }) => Promise<{ data: CreateOrUpdateResponse }>;
       getClause: (id: number) => Promise<{ data: GetClauseResponse }>;
