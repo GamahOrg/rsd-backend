@@ -37,7 +37,7 @@ const keyword: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
         field: string;
         direction: "asc" | "desc";
       };
-      const order_by = { field: field || "id", direction: direction || "asc" };
+      const order_by = { field: field || "post_count", direction: direction || "desc" };
       const { data, totalRecords } = await fastify.keywordService.getKeywordsStatistics(
         search,
         skip,
