@@ -57,7 +57,6 @@ export const IFilter = Type.Object({
   user: Type.Object({
     from: Type.Optional(Type.Array(Type.String())),
     to: Type.Optional(Type.Array(Type.String())),
-    is_verified: Type.Optional(Type.Boolean()),
     verified_type: Type.Optional(Type.Array(Type.String())),
     metrics: Type.Object({
       followers_count: Type.Optional(

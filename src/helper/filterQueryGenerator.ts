@@ -44,7 +44,6 @@ export interface Filter {
   user?: {
     from?: string[];
     to?: string[];
-    is_verified?: boolean;
     verified_type?: string[];
     metrics?: {
       followers_count?: { min?: number; max?: number };
@@ -128,23 +127,34 @@ const buildSentimentFilter = (sentiments?: string[]) => {
   }
 };
 
+const buildVerifiedTypeFilter = (verifiedTypes?: string[]) => {
+  if (!verifiedTypes || verifiedTypes.length === 0) return {};
+
+  const hasUnverified = verifiedTypes.includes("unverified");
+  const otherTypes = verifiedTypes.filter((t) => t !== "unverified");
+
+  if (hasUnverified && otherTypes.length > 0) {
+    return { verified_type: Or(IsNull(), In(otherTypes)) };
+  } else if (hasUnverified) {
+    return { verified_type: IsNull() };
+  } else {
+    return { verified_type: In(otherTypes) };
+  }
+};
+
 const buildUserFilters = (filter: Filter) => {
   const hasFollowersRange = !!(
     filter.user?.metrics?.followers_count &&
     (isDefined(filter.user?.metrics?.followers_count.min) ||
       isDefined(filter.user?.metrics?.followers_count.max))
   );
-  const hasVerified = filter.user?.is_verified !== undefined;
   const hasVerifiedType = !!(filter.user?.verified_type && filter.user?.verified_type.length);
-  if (!hasFollowersRange && !hasVerified && !hasVerifiedType) return {};
+  if (!hasFollowersRange && !hasVerifiedType) return {};
 
   return {
     user: {
       ...buildNumberRangeFilter("followers_count", filter.user?.metrics?.followers_count),
-      ...(hasVerified ? { is_verified: filter.user?.is_verified } : {}),
-      ...(hasVerifiedType && filter.user?.verified_type
-        ? { verified_type: In(filter.user.verified_type) }
-        : {}),
+      ...buildVerifiedTypeFilter(filter.user?.verified_type),
     },
   };
 };
