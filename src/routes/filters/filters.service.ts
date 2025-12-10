@@ -1,5 +1,5 @@
 import fp from "fastify-plugin";
-import { IsNull, Like, QueryRunner } from "typeorm";
+import { IsNull, Like, Not, QueryRunner } from "typeorm";
 import { AppDataSource } from "../../config/database";
 import { XFilter } from "../../database/entity/Filter.entity";
 import { TFilter } from "../../models/types/comment.type";
@@ -77,6 +77,7 @@ export default fp(async (fastify) => {
         if (existingFilter.name !== filter.name) {
           const existingFilterWithSameName = await filterRepo.findOne({
             where: {
+              id: Not(filter.id),
               name: filter.name,
               type: filter.type,
               deleted_at: IsNull(),
