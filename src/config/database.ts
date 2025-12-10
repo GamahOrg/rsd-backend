@@ -39,6 +39,9 @@ export const XDataSource = new DataSource({
     encrypt: true,
     trustServerCertificate: true, // <— allow self-signed certs
   },
+  extra: {
+    requestTimeout: 60000, // 60 seconds
+  },
 });
 
 // Initialize the database connection
