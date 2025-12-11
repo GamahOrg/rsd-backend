@@ -29,14 +29,7 @@ const countWordsInClause = (clause: string): number => {
     } else if (content.startsWith("'") || content.startsWith('"')) {
       content = content.slice(1, -1); // Remove surrounding quotes
     }
-
-    // Remove % and ٪ (Arabic percent) wildcards and extra whitespace
-    const cleanContent = content.replace(/[%٪]/g, "").trim();
-
-    // Split by whitespace and filter out empty strings
-    const words = cleanContent.split(/\s+/).filter((word) => word.length > 0);
-
-    totalWords += words.length;
+    totalWords++;
   }
 
   return totalWords;
