@@ -18,7 +18,7 @@ export default fp(async (fastify) => {
       "user.tweet_count IS NOT NULL AND user.total_post_inc_keyword > 0 and user.like_count IS NOT NULL AND user.like_count > 0",
     );
     if (search) {
-      qb.where("user.username LIKE :search", { search: `${search}%` });
+      qb.andWhere("user.username LIKE :search", { search: `${search}%` });
     }
     if (order_by) {
       const direction = order_by.direction.toLowerCase() === "asc" ? "ASC" : "DESC";
