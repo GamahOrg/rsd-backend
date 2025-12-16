@@ -307,26 +307,30 @@ type ExpressionNode =
 
 /**
  * Tokenize a clause ID expression like "([context] equals 1 and [context] equals 2 or [context] equals 3)"
+ * or "([context] = '43')" with quoted values
  */
 const tokenizeClauseExpression = (clauseExpr: string): ClauseToken[] => {
   if (!clauseExpr) return [];
 
   const tokens: ClauseToken[] = [];
-  // Pattern to match: [context], equals, numbers, and, or, parentheses
-  const pattern = /\[context\]|equals|(\d+)|\b(and|or)\b|\(|\)/gi;
+  // Pattern to match: [context], equals/=, numbers (quoted or unquoted), and, or, parentheses
+  const pattern = /\[context\]|equals|=|'(\d+)'|(\d+)|\b(and|or)\b|\(|\)/gi;
   let match;
 
   while ((match = pattern.exec(clauseExpr)) !== null) {
     if (match[1]) {
-      // It's a number (clause ID)
+      // It's a quoted number (clause ID) like '43'
       tokens.push({ type: "CLAUSEID", value: parseInt(match[1], 10) });
+    } else if (match[2]) {
+      // It's an unquoted number (clause ID)
+      tokens.push({ type: "CLAUSEID", value: parseInt(match[2], 10) });
     } else if (match[0].toLowerCase() === "[context]") {
       tokens.push({ type: "CONTEXT", value: "[context]" });
-    } else if (match[0].toLowerCase() === "equals") {
+    } else if (match[0].toLowerCase() === "equals" || match[0] === "=") {
       tokens.push({ type: "EQUALS", value: "equals" });
-    } else if (match[2]) {
+    } else if (match[3]) {
       // It's an operator (and/or)
-      const operator = match[2].toUpperCase();
+      const operator = match[3].toUpperCase();
       if (operator === "AND") {
         tokens.push({ type: "AND", value: "AND" });
       } else if (operator === "OR") {
