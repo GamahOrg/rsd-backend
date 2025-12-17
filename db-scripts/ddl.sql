@@ -152,3 +152,58 @@ select count(*)                                             as total_posts,
 from post
 go
 
+-- XClause table: stores reusable search clauses with include/exclude patterns
+create table social_media.x_clause
+(
+    id              bigint identity
+        primary key,
+    name            nvarchar(255) not null,
+    include_clause  nvarchar(max) not null,
+    exclude_clause  nvarchar(max) not null,
+    operator        nvarchar(255) not null default 'AND',
+    include_accounts_clause nvarchar(max) null,
+    exclude_accounts_clause nvarchar(max) null,
+    include_to_accounts_clause nvarchar(max) null,
+    exclude_to_accounts_clause nvarchar(max) null,
+    total_posts     bigint null,
+    total_impressions bigint null,
+    positive_posts  bigint null,
+    negative_posts  bigint null,
+    neutral_posts   bigint null,
+    statistics_updated_at datetime null,
+    created_at      datetime not null default getdate(),
+    updated_at      datetime null,
+    deleted_at      datetime null
+)
+go
+
+-- Filter table: stores filter configurations
+create table social_media.x_filter
+(
+    id           bigint identity
+        primary key,
+    name         nvarchar(255) not null,
+    type         varchar(50) not null,
+    filter       nvarchar(max) not null,
+    created_at   datetime not null default getdate(),
+    updated_at   datetime null,
+    deleted_at   datetime null
+)
+go
+
+-- Filter clauses junction table: many-to-many relationship between filters and clauses
+create table social_media.x_filter_clauses
+(
+    id          bigint identity
+        primary key,
+    filter_id   bigint not null
+        constraint FK_filter_clauses_filter
+            references social_media.x_filter (id)
+            on delete cascade,
+    clause_id   bigint not null
+        constraint FK_filter_clauses_clause
+            references social_media.x_clause (id)
+            on delete cascade,
+    deleted_at   datetime null
+)
+go
