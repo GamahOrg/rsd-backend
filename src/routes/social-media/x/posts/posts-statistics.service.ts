@@ -19,6 +19,7 @@ export default fp(async (fastify) => {
 
     const qb = postRepo
       .createQueryBuilder("post")
+      .leftJoin("post.user", "user")
       .select([
         "SUM(CASE WHEN post.post_type = 'post' THEN 1 ELSE 0 END) AS posts_count",
         "SUM(CASE WHEN post.post_type = 'quote' THEN 1 ELSE 0 END) AS quotes_count",
@@ -175,6 +176,7 @@ export default fp(async (fastify) => {
 
     const qb = postRepo
       .createQueryBuilder("post")
+      .leftJoin("post.user", "user")
       .select([
         "SUM(CASE WHEN post.sentiment = 'positive' THEN 1 ELSE 0 END) AS positive_count",
         "SUM(CASE WHEN post.sentiment = 'negative' THEN 1 ELSE 0 END) AS negative_count",
