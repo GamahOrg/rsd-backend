@@ -8,10 +8,22 @@ const IBody = Type.Object({
 type TBody = Static<typeof IBody>;
 
 const IResponse = Type.Object({
-  positive: Type.Number(),
-  negative: Type.Number(),
-  neutral: Type.Number(),
-  none: Type.Number(),
+  positive: Type.Object({
+    count: Type.Number(),
+    percentage: Type.Number(),
+  }),
+  negative: Type.Object({
+    count: Type.Number(),
+    percentage: Type.Number(),
+  }),
+  neutral: Type.Object({
+    count: Type.Number(),
+    percentage: Type.Number(),
+  }),
+  none: Type.Object({
+    count: Type.Number(),
+    percentage: Type.Number(),
+  }),
 });
 
 export type TResponse = Static<typeof IResponse>;

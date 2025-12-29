@@ -28,8 +28,14 @@ export default fp(async (fastify) => {
 
     return {
       data: {
-        verified: toPercentage(parseInt(result?.verified_count || "0", 10), total),
-        unverified: toPercentage(parseInt(result?.unverified_count || "0", 10), total),
+        verified: {
+          count: parseInt(result?.verified_count || "0", 10),
+          percentage: toPercentage(parseInt(result?.verified_count || "0", 10), total),
+        },
+        unverified: {
+          count: parseInt(result?.unverified_count || "0", 10),
+          percentage: toPercentage(parseInt(result?.unverified_count || "0", 10), total),
+        },
       },
     };
   };
