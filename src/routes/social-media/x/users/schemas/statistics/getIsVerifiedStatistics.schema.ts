@@ -3,8 +3,14 @@ import { IError, TError } from "../../../../../../helper/common";
 import { RouteGenericInterface } from "fastify";
 
 const IResponse = Type.Object({
-  verified: Type.Number(),
-  unverified: Type.Number(),
+  verified: Type.Object({
+    count: Type.Number(),
+    percentage: Type.Number(),
+  }),
+  unverified: Type.Object({
+    count: Type.Number(),
+    percentage: Type.Number(),
+  }),
 });
 
 export type TResponse = Static<typeof IResponse>;

@@ -195,10 +195,22 @@ export default fp(async (fastify) => {
 
     return {
       data: {
-        positive: toPercentage(parseInt(result?.positive_count || "0", 10), total),
-        negative: toPercentage(parseInt(result?.negative_count || "0", 10), total),
-        neutral: toPercentage(parseInt(result?.neutral_count || "0", 10), total),
-        none: toPercentage(parseInt(result?.none_count || "0", 10), total),
+        positive: {
+          count: parseInt(result?.positive_count || "0", 10),
+          percentage: toPercentage(parseInt(result?.positive_count || "0", 10), total),
+        },
+        negative: {
+          count: parseInt(result?.negative_count || "0", 10),
+          percentage: toPercentage(parseInt(result?.negative_count || "0", 10), total),
+        },
+        neutral: {
+          count: parseInt(result?.neutral_count || "0", 10),
+          percentage: toPercentage(parseInt(result?.neutral_count || "0", 10), total),
+        },
+        none: {
+          count: parseInt(result?.none_count || "0", 10),
+          percentage: toPercentage(parseInt(result?.none_count || "0", 10), total),
+        },
       },
     };
   };
