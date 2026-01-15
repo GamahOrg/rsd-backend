@@ -1,0 +1,26 @@
+{
+  "errors": {
+    "http": {
+      "internalServerError": "خطأ في الخادم الداخلي",
+      "unauthorizedAccess": "الوصول غير المصرح به"
+    },
+    "validation": {
+      "errorMessage": "خطأ في التحقق من الصحة",
+      "required": "الحقل '{{missingProperty}}' مطلوب.",
+      "minLength": "يجب أن تكون قيمة الحقل {{missingProperty}} مساوية أو أكبر لـ {{limit}}.",
+      "maxLength": "يجب أن تكون قيمة الحقل {{missingProperty}} مساوية أو أصغر لـ {{limit}}.",
+      "minItems": "يجب أن تكون قيمة الحقل {{missingProperty}} مساوية أو أكبر لـ {{limit}}.",
+      "type": "يجب أن تكون نوع الحقل {{missingProperty}} {{type}}."
+    }
+  },
+  "filters": {
+    "messages": {
+      "deleted": "تم حذف الفلتر بنجاح"
+    },
+    "errors": {
+      "notFound": "الفلتر رقم {{id}} غير موجود",
+      "typeCannotBeChanged": "لا يمكن تغيير النوع",
+      "nameAlreadyExistsWithSameType": "الاسم مسجل مسبقا بنفس النوع"
+    }
+  }
+}

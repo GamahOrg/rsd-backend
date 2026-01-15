@@ -57,6 +57,9 @@ export class User extends BaseEntity {
   @Column({ type: "bigint", nullable: true })
   pinned_tweet_id?: string;
 
+  @Column({ type: "int", nullable: true })
+  total_post_inc_keyword?: number;
+
   @CreateDateColumn()
   created_at?: Date;
 

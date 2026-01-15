@@ -17,3 +17,10 @@ export const IDateTimeRange = Type.Object({
   from: Type.String({ format: "date-time" }),
   to: Type.String({ format: "date-time" }),
 });
+
+export const ISavedFilterType = Type.Union([
+  Type.Literal("accounts"),
+  Type.Literal("posts"),
+  Type.Literal("statistics"),
+]);
+export type TSavedFilterType = Static<typeof ISavedFilterType>;

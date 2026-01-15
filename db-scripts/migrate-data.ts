@@ -13,7 +13,7 @@ const sourceDataSource = new DataSource({
   port: parseInt(process.env.DB_PORT || "1433"),
   username: process.env.DB_USERNAME || "sa",
   password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_DATABASE || "testdb",
+  database: process.env.DB_NAME || "testdb",
   synchronize: false,
   logging: false,
   entities: [join(__dirname, "..", "src/database/entity", "*.{ts,js}")],
@@ -21,6 +21,7 @@ const sourceDataSource = new DataSource({
     encrypt: true,
     trustServerCertificate: true,
   },
+  requestTimeout: 300000, // 5 minutes timeout for large queries
 });
 
 // Target Database Configuration (Azure Test DB)
@@ -39,6 +40,7 @@ const targetDataSource = new DataSource({
     encrypt: true,
     trustServerCertificate: false,
   },
+  requestTimeout: 300000, // 5 minutes timeout for large queries
 });
 
 interface MigrationStats {
@@ -46,6 +48,8 @@ interface MigrationStats {
   posts: number;
   mentions: number;
   countries: number;
+  keywordPostCounts: number;
+  filters: number;
 }
 
 const stats: MigrationStats = {
@@ -53,42 +57,91 @@ const stats: MigrationStats = {
   posts: 0,
   mentions: 0,
   countries: 0,
+  keywordPostCounts: 0,
+  filters: 0,
 };
 
 async function clearTargetDatabase() {
   console.log("\n🧹 Clearing target database tables...");
 
   // Delete in order respecting foreign key constraints
-  // mentions -> posts -> users -> countries
+  // mentions -> posts -> users -> countries, keyword_post_counts, filters
   try {
-    await targetDataSource.query(`DELETE FROM mentions`);
+    const result = await targetDataSource.query(`DELETE FROM mentions`);
     console.log("✅ Cleared mentions");
   } catch (error) {
     console.log("⚠️  No mentions to clear or table doesn't exist");
   }
 
   try {
-    await targetDataSource.query(`DELETE FROM post`);
+    const result = await targetDataSource.query(`DELETE FROM post`);
     console.log("✅ Cleared posts");
   } catch (error) {
     console.log("⚠️  No posts to clear or table doesn't exist");
   }
 
   try {
-    await targetDataSource.query(`DELETE FROM [user]`);
+    const result = await targetDataSource.query(`DELETE FROM keyword_post_counts`);
+    console.log("✅ Cleared keyword_post_counts");
+  } catch (error) {
+    console.log("⚠️  No keyword_post_counts to clear or table doesn't exist");
+  }
+
+  try {
+    const result = await targetDataSource.query(`DELETE FROM [user]`);
     console.log("✅ Cleared users");
   } catch (error) {
     console.log("⚠️  No users to clear or table doesn't exist");
   }
 
   try {
-    await targetDataSource.query(`DELETE FROM countries_lookup`);
+    const result = await targetDataSource.query(`DELETE FROM countries_lookup`);
     console.log("✅ Cleared countries");
   } catch (error) {
     console.log("⚠️  No countries to clear or table doesn't exist");
   }
 
-  console.log("🧹 Database cleared successfully\n");
+  try {
+    const result = await targetDataSource.query(`DELETE FROM filter`);
+    console.log("✅ Cleared filters");
+  } catch (error) {
+    console.log("⚠️  No filters to clear or table doesn't exist");
+  }
+
+  // Verify tables are empty
+  try {
+    const counts = await targetDataSource.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM [user]) as user_count,
+        (SELECT COUNT(*) FROM post) as post_count,
+        (SELECT COUNT(*) FROM mentions) as mentions_count,
+        (SELECT COUNT(*) FROM countries_lookup) as countries_count,
+        (SELECT COUNT(*) FROM keyword_post_counts) as keywords_count,
+        (SELECT COUNT(*) FROM filter) as filters_count
+    `);
+    const totals = counts[0];
+    if (
+      totals.user_count > 0 ||
+      totals.post_count > 0 ||
+      totals.mentions_count > 0 ||
+      totals.countries_count > 0 ||
+      totals.keywords_count > 0 ||
+      totals.filters_count > 0
+    ) {
+      console.log("\n⚠️  WARNING: Some tables still contain data:");
+      console.log(`   Users: ${totals.user_count}`);
+      console.log(`   Posts: ${totals.post_count}`);
+      console.log(`   Mentions: ${totals.mentions_count}`);
+      console.log(`   Countries: ${totals.countries_count}`);
+      console.log(`   Keywords: ${totals.keywords_count}`);
+      console.log(`   Filters: ${totals.filters_count}`);
+      console.log("   This may cause duplicate key errors during migration.\n");
+    }
+  } catch (error) {
+    console.log("⚠️  Could not verify table counts");
+  }
+
+  console.log("🧹 Database clearing complete\n");
 }
 
 async function migrateCountries() {
@@ -113,13 +166,15 @@ async function migrateCountries() {
     const values = batch
       .map(
         (c: any) =>
-          `(${c.id}, N'${c.english_name.replace(/'/g, "''")}', N'${c.arabic_name.replace(/'/g, "''")}', N'${c.iso3}', N'${c.iso2}')`,
+          `(${c.id}, N'${c.english_name.replace(/'/g, "''")}', N'${c.arabic_name.replace(/'/g, "''")}', ${c.iso3 ? `N'${c.iso3}'` : "NULL"}, ${c.iso2 ? `N'${c.iso2}'` : "NULL"})`,
       )
       .join(",\n");
 
     const insertQuery = `
+      SET IDENTITY_INSERT countries_lookup ON;
       INSERT INTO countries_lookup (id, english_name, arabic_name, iso3, iso2)
       VALUES ${values};
+      SET IDENTITY_INSERT countries_lookup OFF;
     `;
 
     await targetDataSource.query(insertQuery);
@@ -153,48 +208,99 @@ async function migrateUsers(limit: number = 500) {
     return [];
   }
 
-  // Batch insert users in parallel
-  const batchSize = 50;
+  // Batch insert users using bulk VALUES (more efficient)
+  const batchSize = 100;
   for (let i = 0; i < users.length; i += batchSize) {
     const batch = users.slice(i, i + batchSize);
 
-    // Insert all users in the batch in parallel
-    await Promise.all(
-      batch.map(async (user: any) => {
-        const insertQuery = `
-          SET IDENTITY_INSERT [user] ON;
-          INSERT INTO [user] (
-            id, user_id, username, name, description, profile_image_url,
-            followers_count, following_count, tweet_count, listed_count,
-            like_count, media_count, is_verified, verified_type,
-            pinned_tweet_id, created_at, updated_at, user_created_at
-          ) VALUES (
-            ${user.id},
-            ${user.user_id},
-            ${user.username ? `'${user.username.replace(/'/g, "''")}'` : "NULL"},
-            ${user.name ? `N'${user.name.replace(/'/g, "''")}'` : "NULL"},
-            ${user.description ? `N'${user.description.replace(/'/g, "''")}'` : "NULL"},
-            ${user.profile_image_url ? `'${user.profile_image_url.replace(/'/g, "''")}'` : "NULL"},
-            ${user.followers_count || "NULL"},
-            ${user.following_count || "NULL"},
-            ${user.tweet_count || "NULL"},
-            ${user.listed_count || "NULL"},
-            ${user.like_count || "NULL"},
-            ${user.media_count || "NULL"},
-            ${user.is_verified !== null ? (user.is_verified ? 1 : 0) : "NULL"},
-            ${user.verified_type ? `'${user.verified_type.replace(/'/g, "''")}'` : "NULL"},
-            ${user.pinned_tweet_id || "NULL"},
-            ${user.created_at ? `'${new Date(user.created_at).toISOString()}'` : "NULL"},
-            ${user.updated_at ? `'${new Date(user.updated_at).toISOString()}'` : "NULL"},
-            ${user.user_created_at ? `'${new Date(user.user_created_at).toISOString()}'` : "NULL"}
-          );
-          SET IDENTITY_INSERT [user] OFF;
-        `;
+    // Build bulk VALUES clause
+    const values = batch
+      .map(
+        (user: any) =>
+          `(${user.id}, ${user.user_id}, ` +
+          `${user.username ? `'${user.username.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${user.name ? `N'${user.name.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${user.description ? `N'${user.description.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${user.profile_image_url ? `'${user.profile_image_url.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${user.followers_count || "NULL"}, ${user.following_count || "NULL"}, ` +
+          `${user.tweet_count || "NULL"}, ${user.listed_count || "NULL"}, ` +
+          `${user.like_count || "NULL"}, ${user.media_count || "NULL"}, ` +
+          `${user.is_verified !== null ? (user.is_verified ? 1 : 0) : "NULL"}, ` +
+          `${user.verified_type ? `'${user.verified_type.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${user.pinned_tweet_id || "NULL"}, ` +
+          `${user.created_at ? `'${new Date(user.created_at).toISOString()}'` : "NULL"}, ` +
+          `${user.updated_at ? `'${new Date(user.updated_at).toISOString()}'` : "NULL"}, ` +
+          `${user.user_created_at ? `'${new Date(user.user_created_at).toISOString()}'` : "NULL"})`,
+      )
+      .join(",\n");
 
-        await targetDataSource.query(insertQuery);
-        stats.users++;
-      }),
-    );
+    const insertQuery = `
+      SET IDENTITY_INSERT [user] ON;
+      INSERT INTO [user] (
+        id, user_id, username, name, description, profile_image_url,
+        followers_count, following_count, tweet_count, listed_count,
+        like_count, media_count, is_verified, verified_type,
+        pinned_tweet_id, created_at, updated_at, user_created_at
+      )
+      VALUES ${values};
+      SET IDENTITY_INSERT [user] OFF;
+    `;
+
+    try {
+      await targetDataSource.query(insertQuery);
+      stats.users += batch.length;
+    } catch (error: any) {
+      // If bulk insert fails due to duplicate key, fall back to individual inserts
+      if (error.message && error.message.includes("PRIMARY KEY")) {
+        console.log(
+          `⚠️  Bulk insert failed for users batch ${i}-${i + batch.length}, falling back to individual inserts...`,
+        );
+        for (const user of batch) {
+          try {
+            const singleInsertQuery = `
+              SET IDENTITY_INSERT [user] ON;
+              INSERT INTO [user] (
+                id, user_id, username, name, description, profile_image_url,
+                followers_count, following_count, tweet_count, listed_count,
+                like_count, media_count, is_verified, verified_type,
+                pinned_tweet_id, created_at, updated_at, user_created_at
+              ) VALUES (
+                ${user.id},
+                ${user.user_id},
+                ${user.username ? `'${user.username.replace(/'/g, "''")}'` : "NULL"},
+                ${user.name ? `N'${user.name.replace(/'/g, "''")}'` : "NULL"},
+                ${user.description ? `N'${user.description.replace(/'/g, "''")}'` : "NULL"},
+                ${user.profile_image_url ? `'${user.profile_image_url.replace(/'/g, "''")}'` : "NULL"},
+                ${user.followers_count || "NULL"},
+                ${user.following_count || "NULL"},
+                ${user.tweet_count || "NULL"},
+                ${user.listed_count || "NULL"},
+                ${user.like_count || "NULL"},
+                ${user.media_count || "NULL"},
+                ${user.is_verified !== null ? (user.is_verified ? 1 : 0) : "NULL"},
+                ${user.verified_type ? `'${user.verified_type.replace(/'/g, "''")}'` : "NULL"},
+                ${user.pinned_tweet_id || "NULL"},
+                ${user.created_at ? `'${new Date(user.created_at).toISOString()}'` : "NULL"},
+                ${user.updated_at ? `'${new Date(user.updated_at).toISOString()}'` : "NULL"},
+                ${user.user_created_at ? `'${new Date(user.user_created_at).toISOString()}'` : "NULL"}
+              );
+              SET IDENTITY_INSERT [user] OFF;
+            `;
+            await targetDataSource.query(singleInsertQuery);
+            stats.users++;
+          } catch (innerError: any) {
+            // Skip duplicate users
+            if (innerError.message && innerError.message.includes("PRIMARY KEY")) {
+              console.log(`   ⚠️  Skipping duplicate user id: ${user.id}`);
+            } else {
+              throw innerError;
+            }
+          }
+        }
+      } else {
+        throw error;
+      }
+    }
 
     console.log(`Migrated ${stats.users}/${users.length} users`);
   }
@@ -213,13 +319,13 @@ async function migratePosts(userIds: string[]) {
 
   const userIdsList = userIds.join(",");
   const postsQuery = `
-    SELECT * FROM post
+    SELECT TOP 5000 * FROM post
     WHERE user_id IN (${userIdsList})
     ORDER BY posted_at DESC
   `;
 
   const posts = await sourceDataSource.query(postsQuery);
-  console.log(`Found ${posts.length} posts for migrated users`);
+  console.log(`Found ${posts.length} posts for migrated users (max 20,000)`);
 
   if (posts.length === 0) {
     console.log("No posts to migrate");
@@ -229,61 +335,124 @@ async function migratePosts(userIds: string[]) {
   // Create a Set of migrated user IDs for fast lookup
   const migratedUserIds = new Set(userIds.map((id) => String(id)));
 
-  // Batch insert posts in parallel
-  const batchSize = 100;
+  // Batch insert posts using bulk VALUES (more efficient)
+  const batchSize = 1000;
   for (let i = 0; i < posts.length; i += batchSize) {
     const batch = posts.slice(i, i + batchSize);
 
-    // Insert all posts in the batch in parallel
-    await Promise.all(
-      batch.map(async (post: any) => {
+    // Build bulk VALUES clause
+    const values = batch
+      .map((post: any) => {
         // If reply_to_user_id references a user not in our migrated set, set it to NULL
         const replyToUserId =
           post.reply_to_user_id && migratedUserIds.has(String(post.reply_to_user_id))
             ? post.reply_to_user_id
             : null;
 
-        const insertQuery = `
-          SET IDENTITY_INSERT post ON;
-          INSERT INTO post (
-            id, conversation_id, post_id, user_id, username, name, lang,
-            sentiment, country, possibly_sensitive, text, like_count,
-            reply_count, retweet_count, bookmark_count, quote_count,
-            impression_count, post_type, referenced_tweet_id, reply_to_user_id,
-            reply_to_username, posted_at, created_at, updated_at
-          ) VALUES (
-            ${post.id},
-            ${post.conversation_id || "NULL"},
-            ${post.post_id},
-            ${post.user_id},
-            ${post.username ? `'${post.username.replace(/'/g, "''")}'` : "NULL"},
-            ${post.name ? `N'${post.name.replace(/'/g, "''")}'` : "NULL"},
-            ${post.lang ? `'${post.lang.replace(/'/g, "''")}'` : "NULL"},
-            ${post.sentiment ? `'${post.sentiment.replace(/'/g, "''")}'` : "NULL"},
-            ${post.country ? `'${post.country.replace(/'/g, "''")}'` : "NULL"},
-            ${post.possibly_sensitive !== null ? (post.possibly_sensitive ? 1 : 0) : "NULL"},
-            ${post.text ? `N'${post.text.replace(/'/g, "''")}'` : "NULL"},
-            ${post.like_count || "NULL"},
-            ${post.reply_count || "NULL"},
-            ${post.retweet_count || "NULL"},
-            ${post.bookmark_count || "NULL"},
-            ${post.quote_count || "NULL"},
-            ${post.impression_count || "NULL"},
-            ${post.post_type ? `'${post.post_type.replace(/'/g, "''")}'` : "NULL"},
-            ${post.referenced_tweet_id || "NULL"},
-            ${replyToUserId || "NULL"},
-            ${post.reply_to_username ? `'${post.reply_to_username.replace(/'/g, "''")}'` : "NULL"},
-            ${post.posted_at ? `'${new Date(post.posted_at).toISOString()}'` : "NULL"},
-            ${post.created_at ? `'${new Date(post.created_at).toISOString()}'` : "NULL"},
-            ${post.updated_at ? `'${new Date(post.updated_at).toISOString()}'` : "NULL"}
-          );
-          SET IDENTITY_INSERT post OFF;
-        `;
+        return (
+          `(${post.id}, ${post.conversation_id || "NULL"}, ${post.post_id}, ${post.user_id}, ` +
+          `${post.username ? `'${post.username.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${post.name ? `N'${post.name.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${post.lang ? `'${post.lang.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${post.sentiment ? `'${post.sentiment.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${post.country ? `'${post.country.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${post.possibly_sensitive !== null ? (post.possibly_sensitive ? 1 : 0) : "NULL"}, ` +
+          `${post.text ? `N'${post.text.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${post.like_count || "NULL"}, ${post.reply_count || "NULL"}, ` +
+          `${post.retweet_count || "NULL"}, ${post.bookmark_count || "NULL"}, ` +
+          `${post.quote_count || "NULL"}, ${post.impression_count || "NULL"}, ` +
+          `${post.media_count || "NULL"}, ` +
+          `${post.post_type ? `'${post.post_type.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${post.referenced_tweet_id || "NULL"}, ${replyToUserId || "NULL"}, ` +
+          `${post.reply_to_username ? `'${post.reply_to_username.replace(/'/g, "''")}'` : "NULL"}, ` +
+          `${post.posted_at ? `'${new Date(post.posted_at).toISOString()}'` : "NULL"}, ` +
+          `${post.created_at ? `'${new Date(post.created_at).toISOString()}'` : "NULL"}, ` +
+          `${post.updated_at ? `'${new Date(post.updated_at).toISOString()}'` : "NULL"})`
+        );
+      })
+      .join(",\n");
 
-        await targetDataSource.query(insertQuery);
-        stats.posts++;
-      }),
-    );
+    const insertQuery = `
+      SET IDENTITY_INSERT post ON;
+      INSERT INTO post (
+        id, conversation_id, post_id, user_id, username, name, lang,
+        sentiment, country, possibly_sensitive, text, like_count,
+        reply_count, retweet_count, bookmark_count, quote_count,
+        impression_count, media_count, post_type, referenced_tweet_id, reply_to_user_id,
+        reply_to_username, posted_at, created_at, updated_at
+      )
+      VALUES ${values};
+      SET IDENTITY_INSERT post OFF;
+    `;
+
+    try {
+      await targetDataSource.query(insertQuery);
+      stats.posts += batch.length;
+    } catch (error: any) {
+      // If bulk insert fails due to duplicate key, fall back to individual inserts
+      if (error.message && error.message.includes("PRIMARY KEY")) {
+        console.log(
+          `⚠️  Bulk insert failed for posts batch ${i}-${i + batch.length}, falling back to individual inserts...`,
+        );
+        for (const post of batch) {
+          const replyToUserId =
+            post.reply_to_user_id && migratedUserIds.has(String(post.reply_to_user_id))
+              ? post.reply_to_user_id
+              : null;
+
+          try {
+            const singleInsertQuery = `
+              SET IDENTITY_INSERT post ON;
+              INSERT INTO post (
+                id, conversation_id, post_id, user_id, username, name, lang,
+                sentiment, country, possibly_sensitive, text, like_count,
+                reply_count, retweet_count, bookmark_count, quote_count,
+                impression_count, media_count, post_type, referenced_tweet_id, reply_to_user_id,
+                reply_to_username, posted_at, created_at, updated_at
+              ) VALUES (
+                ${post.id},
+                ${post.conversation_id || "NULL"},
+                ${post.post_id},
+                ${post.user_id},
+                ${post.username ? `'${post.username.replace(/'/g, "''")}'` : "NULL"},
+                ${post.name ? `N'${post.name.replace(/'/g, "''")}'` : "NULL"},
+                ${post.lang ? `'${post.lang.replace(/'/g, "''")}'` : "NULL"},
+                ${post.sentiment ? `'${post.sentiment.replace(/'/g, "''")}'` : "NULL"},
+                ${post.country ? `'${post.country.replace(/'/g, "''")}'` : "NULL"},
+                ${post.possibly_sensitive !== null ? (post.possibly_sensitive ? 1 : 0) : "NULL"},
+                ${post.text ? `N'${post.text.replace(/'/g, "''")}'` : "NULL"},
+                ${post.like_count || "NULL"},
+                ${post.reply_count || "NULL"},
+                ${post.retweet_count || "NULL"},
+                ${post.bookmark_count || "NULL"},
+                ${post.quote_count || "NULL"},
+                ${post.impression_count || "NULL"},
+                ${post.media_count || "NULL"},
+                ${post.post_type ? `'${post.post_type.replace(/'/g, "''")}'` : "NULL"},
+                ${post.referenced_tweet_id || "NULL"},
+                ${replyToUserId || "NULL"},
+                ${post.reply_to_username ? `'${post.reply_to_username.replace(/'/g, "''")}'` : "NULL"},
+                ${post.posted_at ? `'${new Date(post.posted_at).toISOString()}'` : "NULL"},
+                ${post.created_at ? `'${new Date(post.created_at).toISOString()}'` : "NULL"},
+                ${post.updated_at ? `'${new Date(post.updated_at).toISOString()}'` : "NULL"}
+              );
+              SET IDENTITY_INSERT post OFF;
+            `;
+            await targetDataSource.query(singleInsertQuery);
+            stats.posts++;
+          } catch (innerError: any) {
+            // Skip duplicate posts
+            if (innerError.message && innerError.message.includes("PRIMARY KEY")) {
+              console.log(`   ⚠️  Skipping duplicate post id: ${post.id}`);
+            } else {
+              throw innerError;
+            }
+          }
+        }
+      } else {
+        throw error;
+      }
+    }
 
     console.log(`Migrated ${stats.posts}/${posts.length} posts`);
   }
@@ -292,7 +461,7 @@ async function migratePosts(userIds: string[]) {
   return posts.map((p: any) => p.post_id);
 }
 
-async function migrateMentions(postIds: string[]) {
+async function migrateMentions(postIds: string[], userIds: string[]) {
   console.log("\n🔗 Migrating mentions...");
 
   if (postIds.length === 0) {
@@ -301,45 +470,66 @@ async function migrateMentions(postIds: string[]) {
   }
 
   const postIdsList = postIds.join(",");
+  const userIdsList = userIds.join(",");
   const mentionsQuery = `
     SELECT * FROM mentions
     WHERE post_id IN (${postIdsList})
+    AND user_id IN (${userIdsList})
   `;
 
   const mentions = await sourceDataSource.query(mentionsQuery);
-  console.log(`Found ${mentions.length} mentions for migrated posts`);
+  console.log(`Found ${mentions.length} mentions for migrated posts and users`);
 
   if (mentions.length === 0) {
     console.log("No mentions to migrate");
     return;
   }
 
-  // Batch insert mentions in parallel
+  // Batch insert mentions using bulk VALUES (more efficient)
   const batchSize = 100;
   for (let i = 0; i < mentions.length; i += batchSize) {
     const batch = mentions.slice(i, i + batchSize);
 
-    // Insert all mentions in the batch in parallel
-    await Promise.all(
-      batch.map(async (mention: any) => {
-        const insertQuery = `
-          SET IDENTITY_INSERT mentions ON;
-          INSERT INTO mentions (id, post_id, user_id)
-          VALUES (${mention.id}, ${mention.post_id}, ${mention.user_id});
-          SET IDENTITY_INSERT mentions OFF;
-        `;
+    // Build bulk VALUES clause
+    const values = batch
+      .map((mention: any) => `(${mention.id}, ${mention.post_id}, ${mention.user_id})`)
+      .join(",\n");
 
-        try {
-          await targetDataSource.query(insertQuery);
-          stats.mentions++;
-        } catch (error: any) {
-          // Skip if user doesn't exist (mention to user not in our 500)
-          if (!error.message.includes("FOREIGN KEY")) {
-            throw error;
+    const insertQuery = `
+      SET IDENTITY_INSERT mentions ON;
+      INSERT INTO mentions (id, post_id, user_id)
+      VALUES ${values};
+      SET IDENTITY_INSERT mentions OFF;
+    `;
+
+    try {
+      await targetDataSource.query(insertQuery);
+      stats.mentions += batch.length;
+    } catch (error: any) {
+      // If bulk insert fails due to foreign key (mention to user not in our 500),
+      // fall back to individual inserts for this batch
+      if (error.message.includes("FOREIGN KEY")) {
+        for (const mention of batch) {
+          try {
+            const singleInsertQuery = `
+              SET IDENTITY_INSERT mentions ON;
+              INSERT INTO mentions (id, post_id, user_id)
+              VALUES (${mention.id}, ${mention.post_id}, ${mention.user_id});
+              SET IDENTITY_INSERT mentions OFF;
+            `;
+            await targetDataSource.query(singleInsertQuery);
+            stats.mentions++;
+          } catch (innerError: any) {
+            // Skip individual mention if foreign key constraint fails
+            if (!innerError.message.includes("FOREIGN KEY")) {
+              throw innerError;
+            }
           }
         }
-      }),
-    );
+      } else {
+        throw error;
+      }
+    }
 
     console.log(`Migrated ${stats.mentions}/${mentions.length} mentions`);
   }
@@ -347,12 +537,117 @@ async function migrateMentions(postIds: string[]) {
   console.log(`✅ Mentions migration complete: ${stats.mentions} mentions`);
 }
 
+async function migrateKeywordPostCounts() {
+  console.log("\n🔑 Migrating keyword_post_counts table...");
+
+  const keywordsQuery = `SELECT * FROM keyword_post_counts`;
+  const keywords = await sourceDataSource.query(keywordsQuery);
+
+  console.log(`Found ${keywords.length} keyword_post_counts records in source database`);
+
+  if (keywords.length === 0) {
+    console.log("No keyword_post_counts to migrate");
+    return;
+  }
+
+  // Batch insert keywords using bulk VALUES (more efficient)
+  const batchSize = 100;
+  for (let i = 0; i < keywords.length; i += batchSize) {
+    const batch = keywords.slice(i, i + batchSize);
+
+    // Build bulk VALUES clause
+    const values = batch
+      .map(
+        (keyword: any) =>
+          `(${keyword.id}, N'${keyword.keyword.replace(/'/g, "''")}', ` +
+          `${keyword.post_count}, '${new Date(keyword.last_refreshed).toISOString()}', ` +
+          `${keyword.positive_post_count}, ${keyword.negative_post_count}, ` +
+          `${keyword.neutral_post_count}, ${keyword.total_impression})`,
+      )
+      .join(",\n");
+
+    const insertQuery = `
+      SET IDENTITY_INSERT keyword_post_counts ON;
+      INSERT INTO keyword_post_counts (
+        id, keyword, post_count, last_refreshed, positive_post_count,
+        negative_post_count, neutral_post_count, total_impression
+      )
+      VALUES ${values};
+      SET IDENTITY_INSERT keyword_post_counts OFF;
+    `;
+
+    try {
+      await targetDataSource.query(insertQuery);
+      stats.keywordPostCounts += batch.length;
+    } catch (error: any) {
+      // If bulk insert fails, fall back to individual inserts for this batch
+      for (const keyword of batch) {
+        try {
+          const singleInsertQuery = `
+            SET IDENTITY_INSERT keyword_post_counts ON;
+            INSERT INTO keyword_post_counts (
+              id, keyword, post_count, last_refreshed, positive_post_count,
+              negative_post_count, neutral_post_count, total_impression
+            ) VALUES (
+              ${keyword.id},
+              N'${keyword.keyword.replace(/'/g, "''")}',
+              ${keyword.post_count},
+              '${new Date(keyword.last_refreshed).toISOString()}',
+              ${keyword.positive_post_count},
+              ${keyword.negative_post_count},
+              ${keyword.neutral_post_count},
+              ${keyword.total_impression}
+            );
+            SET IDENTITY_INSERT keyword_post_counts OFF;
+          `;
+          await targetDataSource.query(singleInsertQuery);
+          stats.keywordPostCounts++;
+        } catch (innerError: any) {
+          console.log(`⚠️  Failed to migrate keyword ${keyword.keyword}:`, innerError.message);
+        }
+      }
+    }
+
+    console.log(`Migrated ${stats.keywordPostCounts}/${keywords.length} keyword_post_counts`);
+  }
+
+  console.log(`✅ Keyword_post_counts migration complete: ${stats.keywordPostCounts} records`);
+}
+
+async function migrateFilters() {
+  console.log("\n🔑 Migrating filters table...");
+  const filtersQuery = `SELECT * FROM filter`;
+  const filters = await sourceDataSource.query(filtersQuery);
+  console.log(`Found ${filters.length} filters in source database`);
+  if (filters.length === 0) {
+    console.log("No filters to migrate");
+    return;
+  }
+  // Batch insert filters using bulk VALUES (more efficient)
+  const batchSize = 100;
+  for (let i = 0; i < filters.length; i += batchSize) {
+    const batch = filters.slice(i, i + batchSize);
+    const values = batch.map((filter: any) => `(${filter.id}, ${filter.name}, ${filter.type}, ${filter.filter}, ${filter.created_at}, ${filter.updated_at}, ${filter.deleted_at})`).join(",\n");
+    const insertQuery = `
+      SET IDENTITY_INSERT filter ON;
+      INSERT INTO filter (id, name, type, filter, created_at, updated_at, deleted_at) VALUES ${values};
+      SET IDENTITY_INSERT filter OFF;
+    `;
+    try {
+      await targetDataSource.query(insertQuery);
+      stats.filters += batch.length;
+    } catch (error: any) {
+      throw error;
+    }
+  }
+  console.log(`✅ Filters migration complete: ${stats.filters} filters`);
+}
+
 async function resetIdentityColumns() {
   console.log("\n🔧 Resetting identity columns...");
 
   // Reset identity seed values to continue from max values
-  // Note: countries_lookup doesn't have identity column, so it's excluded
-  const tables = ["user", "post", "mentions"];
+  const tables = ["countries_lookup", "user", "post", "mentions", "keyword_post_counts"];
 
   for (const table of tables) {
     try {
@@ -376,23 +671,29 @@ async function verifyMigration() {
   const countriesCount = await targetDataSource.query(
     "SELECT COUNT(*) as count FROM countries_lookup",
   );
+  const keywordPostCountsCount = await targetDataSource.query(
+    "SELECT COUNT(*) as count FROM keyword_post_counts",
+  );
+  const filtersCount = await targetDataSource.query("SELECT COUNT(*) as count FROM filter");
 
   console.log("\n📊 Migration Summary:");
   console.log("════════════════════════════════════════");
-  console.log(`Countries: ${countriesCount[0].count}`);
-  console.log(`Users:     ${userCount[0].count}`);
-  console.log(`Posts:     ${postCount[0].count}`);
-  console.log(`Mentions:  ${mentionsCount[0].count}`);
+  console.log(`Countries:           ${countriesCount[0].count}`);
+  console.log(`Users:               ${userCount[0].count}`);
+  console.log(`Posts:               ${postCount[0].count}`);
+  console.log(`Mentions:            ${mentionsCount[0].count}`);
+  console.log(`Keyword Post Counts: ${keywordPostCountsCount[0].count}`);
+  console.log(`Filters:             ${filtersCount[0].count}`);
   console.log("════════════════════════════════════════");
   console.log(
-    `✨ Total migrated: ${stats.countries + stats.users + stats.posts + stats.mentions} records`,
+    `✨ Total migrated: ${stats.countries + stats.users + stats.posts + stats.mentions + stats.keywordPostCounts + stats.filters} records`,
   );
 }
 
 async function main() {
   console.log("🚀 Starting data migration...");
   console.log("════════════════════════════════════════");
-  console.log("Source DB:", process.env.DB_HOST, "/", process.env.DB_DATABASE);
+  console.log("Source DB:", process.env.DB_HOST, "/", process.env.DB_NAME);
   console.log("Target DB: rega-dev-db.database.windows.net / X_DATA");
   console.log("════════════════════════════════════════\n");
 
@@ -411,9 +712,11 @@ async function main() {
 
     // Perform migration in order (respecting foreign keys)
     await migrateCountries();
-    const userIds = await migrateUsers(500);
+    await migrateKeywordPostCounts();
+    // await migrateFilters();
+    const userIds = await migrateUsers(100);
     const postIds = await migratePosts(userIds);
-    await migrateMentions(postIds);
+    await migrateMentions(postIds, userIds);
     await resetIdentityColumns();
     await verifyMigration();
 

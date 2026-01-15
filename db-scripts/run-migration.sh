@@ -28,7 +28,7 @@ if [ ! -f ".env" ]; then
     echo "DB_PORT=1433"
     echo "DB_USERNAME=your-username"
     echo "DB_PASSWORD=your-password"
-    echo "DB_DATABASE=X_DATA"
+    echo "DB_NAME=X_DATA"
     echo ""
     exit 1
 fi

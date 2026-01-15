@@ -4,15 +4,15 @@ import qs from "qs";
 import { config } from "dotenv";
 import { join } from "path";
 import AutoLoad from "@fastify/autoload";
-import { initializeDatabase, AppDataSource } from "./config/database";
+import { AppDataSource, initializeAppDatabase, initializeXDatabase } from "./config/database";
 
 // Load environment variables
 config();
 
 const fastify = Fastify({
-  // logger: {
-  //   level: process.env.NODE_ENV === "development" ? "info" : "warn",
-  // },
+  logger: {
+    level: process.env.NODE_ENV === "development" ? "info" : "warn",
+  },
   querystringParser: (str) => qs.parse(str),
 });
 
@@ -46,9 +46,10 @@ const start = async () => {
     console.log("🚀 Starting server initialization...");
 
     // Initialize database connection
-    console.log("📊 Initializing database connection...");
-    await initializeDatabase();
-    console.log("✅ Database connection established successfully");
+    console.log("📊 Initializing databases connection...");
+    await initializeAppDatabase();
+    await initializeXDatabase();
+    console.log("✅ Databases connection established successfully");
 
     // This loads all plugins defined in plugins
     // those should be support plugins that are reused

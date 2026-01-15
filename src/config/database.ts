@@ -12,9 +12,9 @@ export const AppDataSource = new DataSource({
   port: parseInt(process.env.DB_PORT || "1433"),
   username: process.env.DB_USERNAME || "sa",
   password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_DATABASE || "testdb",
+  database: process.env.DB_NAME || "testdb",
   synchronize: false,
-  logging: true,
+  logging: false,
   entities: [join(__dirname, "..", "database/entity", "*.{ts,js}")],
   migrations: [join(__dirname, "..", "database/migration", "*.{ts,js}")],
   options: {
@@ -23,13 +23,44 @@ export const AppDataSource = new DataSource({
   },
 });
 
+export const XDataSource = new DataSource({
+  name: "x_data",
+  type: "mssql",
+  host: process.env.X_DB_HOST || "localhost",
+  port: parseInt(process.env.X_DB_PORT || "1433"),
+  username: process.env.X_DB_USERNAME || "sa",
+  password: process.env.X_DB_PASSWORD || "",
+  database: process.env.X_DB_NAME || "testdb",
+  synchronize: false,
+  logging: false,
+  entities: [join(__dirname, "..", "database/entity", "*.{ts,js}")],
+  // migrations: [join(__dirname, "..", "database/migration", "*.{ts,js}")],
+  options: {
+    encrypt: true,
+    trustServerCertificate: true, // <— allow self-signed certs
+  },
+  extra: {
+    requestTimeout: 60000, // 60 seconds
+  },
+});
+
 // Initialize the database connection
-export const initializeDatabase = async (): Promise<void> => {
+export const initializeAppDatabase = async (): Promise<void> => {
   try {
     await AppDataSource.initialize();
     console.log("Database connection has been initialized successfully.");
   } catch (error) {
     console.error("Error during Data Source initialization:", error);
-    // throw error;
+    throw error;
+  }
+};
+
+export const initializeXDatabase = async (): Promise<void> => {
+  try {
+    await XDataSource.initialize();
+    console.log("X Database connection has been initialized successfully.");
+  } catch (error) {
+    console.error("Error during X Data Source initialization:", error);
+    throw error;
   }
 };

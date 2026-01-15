@@ -8,34 +8,28 @@ go
 
 create table countries_lookup
 (
-    id           int           not null
+    id           bigint identity
         primary key,
-    english_name nvarchar(100) not null,
-    arabic_name  nvarchar(100) not null,
-    iso3         nvarchar(3)   not null,
-    iso2         nvarchar(2)   not null
+    english_name nvarchar(255) not null,
+    arabic_name  nvarchar(255) not null,
+    iso3         nvarchar(3),
+    iso2         nvarchar(2)
 )
 go
 
-create table post_json
+
+create table keyword_post_counts
 (
-    id              bigint identity
+    id                   int identity
         primary key,
-    conversation_id bigint,
-    post_id         bigint,
-    post_json       nvarchar(max),
-    posted_at       datetime,
-    is_processed    bit,
-    synced_at       datetime
+    keyword              nvarchar(400) not null,
+    post_count           bigint        not null,
+    last_refreshed       datetime2     not null,
+    positive_post_count  bigint        not null,
+    negative_post_count  bigint        not null,
+    neutral_post_count   bigint        not null,
+    total_impression     bigint        not null
 )
-go
-
-create index idx_postjson_processed
-    on post_json (is_processed)
-go
-
-create index idx_postjson_post_id
-    on post_json (post_id)
 go
 
 create table [user]
@@ -46,7 +40,7 @@ create table [user]
         unique,
     username          varchar(255),
     name              nvarchar(255),
-    description       nvarchar(max),
+    description       nvarchar(255),
     profile_image_url varchar(max),
     followers_count   int,
     following_count   int,
@@ -86,6 +80,7 @@ create table post
     bookmark_count      int,
     quote_count         int,
     impression_count    int,
+    media_count         int,
     post_type           varchar(50),
     referenced_tweet_id bigint,
     reply_to_user_id    bigint
@@ -147,3 +142,68 @@ create index IX_user_user_id
     on [user] (user_id)
 go
 
+-- Create view for post statistics summary
+create view postStatisticsSummary
+as
+select count(*)                                             as total_posts,
+       sum(case when sentiment = 'positive' then 1 else 0 end) as positive_posts,
+       sum(case when sentiment = 'negative' then 1 else 0 end) as negative_posts,
+       sum(case when sentiment = 'neutral' then 1 else 0 end)  as neutral_posts
+from post
+go
+
+-- XClause table: stores reusable search clauses with include/exclude patterns
+create table social_media.x_clause
+(
+    id              bigint identity
+        primary key,
+    name            nvarchar(255) not null,
+    include_clause  nvarchar(max) not null,
+    exclude_clause  nvarchar(max) not null,
+    operator        nvarchar(255) not null default 'AND',
+    include_accounts_clause nvarchar(max) null,
+    exclude_accounts_clause nvarchar(max) null,
+    include_to_accounts_clause nvarchar(max) null,
+    exclude_to_accounts_clause nvarchar(max) null,
+    total_posts     bigint null,
+    total_impressions bigint null,
+    positive_posts  bigint null,
+    negative_posts  bigint null,
+    neutral_posts   bigint null,
+    statistics_updated_at datetime null,
+    created_at      datetime not null default getdate(),
+    updated_at      datetime null,
+    deleted_at      datetime null
+)
+go
+
+-- Filter table: stores filter configurations
+create table social_media.x_filter
+(
+    id           bigint identity
+        primary key,
+    name         nvarchar(255) not null,
+    type         varchar(50) not null,
+    filter       nvarchar(max) not null,
+    created_at   datetime not null default getdate(),
+    updated_at   datetime null,
+    deleted_at   datetime null
+)
+go
+
+-- Filter clauses junction table: many-to-many relationship between filters and clauses
+create table social_media.x_filter_clauses
+(
+    id          bigint identity
+        primary key,
+    filter_id   bigint not null
+        constraint FK_filter_clauses_filter
+            references social_media.x_filter (id)
+            on delete cascade,
+    clause_id   bigint not null
+        constraint FK_filter_clauses_clause
+            references social_media.x_clause (id)
+            on delete cascade,
+    deleted_at   datetime null
+)
+go
