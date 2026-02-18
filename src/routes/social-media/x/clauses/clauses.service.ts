@@ -5,11 +5,12 @@ import { TResponse as GetAllClausesResponse } from "./schemas/getClauses.schema"
 import { TResponse as GetClauseResponse } from "./schemas/getClause.schema";
 import { TResponse as GetClauseStatisticsResponse } from "./schemas/getClauseStatistics.schema";
 import { XFilterClause } from "../../../../database/entity/FilterClause.entity";
+import { XFilter } from "../../../../database/entity/Filter.entity";
 import { IsNull, Like } from "typeorm";
 import { TResponse as DeleteResponse } from "./schemas/deleteSchema.schema";
 import { TResponse as CreateOrUpdateResponse } from "./schemas/createOrUpdate.schema";
 import { TResponse as GetAllClausesDropdownResponse } from "./schemas/getClausesDropdown.schema";
-import { TResponse as canPerformActionResponse } from "./schemas/canPerformAction.schema";
+import { TResponse as GetLinkedFiltersResponse } from "./schemas/getLinkedFilters.schema";
 import { fetchClauseAsTypeORM } from "../../../../helper/filterQueryGenerator";
 import { Post } from "../../../../database/entity/Post.entity";
 
@@ -115,16 +116,13 @@ export default fp(async (fastify) => {
         },
       });
       if (!existingClause) {
-        throw fastify.httpErrors.notFound(`Clause with id ${clause.id} not found`);
+        throw fastify.httpErrors.notFound(fastify.t("clauses.errors.notFound", { id: clause.id }));
       }
 
-      // 2. check if the clause is connected to any filter?
-      if (await checkIfClauseIsConnectedToFilter(clause.id)) {
-        throw fastify.httpErrors.badRequest(`Clause with id ${clause.id} is connected to a filter`);
-      }
       existingClause.updated_at = new Date();
       // 3. update the clause (exclude id from clause to prevent overwriting)
-      const { id, ...clauseWithoutId } = clause;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id: _, ...clauseWithoutId } = clause;
       data = await clauseRepo.save({ ...existingClause, ...clauseWithoutId });
     } else {
       // create new clause
@@ -135,7 +133,9 @@ export default fp(async (fastify) => {
         },
       });
       if (existingClauseWithSameName) {
-        throw fastify.httpErrors.badRequest(`Clause with name ${clause.name} already exists`);
+        throw fastify.httpErrors.badRequest(
+          fastify.t("clauses.errors.nameAlreadyExists", { name: clause.name }),
+        );
       }
 
       data = await clauseRepo.save({
@@ -154,7 +154,7 @@ export default fp(async (fastify) => {
       where: { id },
     });
     if (!data) {
-      throw fastify.httpErrors.notFound(`Clause with id ${id} not found`);
+      throw fastify.httpErrors.notFound(fastify.t("clauses.errors.notFound", { id }));
     }
     return {
       data: data as unknown as GetClauseResponse,
@@ -168,7 +168,7 @@ export default fp(async (fastify) => {
     });
 
     if (!clauseData) {
-      throw fastify.httpErrors.notFound(`Clause with id ${id} not found`);
+      throw fastify.httpErrors.notFound(fastify.t("clauses.errors.notFound", { id }));
     }
     const clauseFilterResult = await fetchClauseAsTypeORM(id, fastify);
 
@@ -275,7 +275,7 @@ export default fp(async (fastify) => {
     });
 
     if (!clauseData) {
-      throw fastify.httpErrors.notFound(`Clause with id ${id} not found`);
+      throw fastify.httpErrors.notFound(fastify.t("clauses.errors.notFound", { id }));
     }
 
     return {
@@ -286,46 +286,161 @@ export default fp(async (fastify) => {
     };
   };
 
-  const checkIfClauseIsConnectedToFilter = async (id: number) => {
+  const getLinkedFilters = async (id: number) => {
     const filterClauseRepo = AppDataSource.getRepository(XFilterClause);
-    const filterClause = await filterClauseRepo.findOne({
+    const filterRepo = AppDataSource.getRepository(XFilter);
+
+    // Get all filter IDs linked to this clause
+    const filterClauses = await filterClauseRepo.find({
+      where: {
+        clause_id: id,
+        deleted_at: IsNull(),
+      },
+      select: {
+        filter_id: true,
+      },
+    });
+
+    if (filterClauses.length === 0) {
+      return {
+        data: {
+          filters: [],
+        } as GetLinkedFiltersResponse,
+      };
+    }
+
+    // Get filter details
+    const filterIds = filterClauses.map((fc) => fc.filter_id);
+    const filters = await filterRepo
+      .createQueryBuilder("filter")
+      .select(["filter.id", "filter.name"])
+      .where("filter.id IN (:...filterIds)", { filterIds })
+      .andWhere("filter.deleted_at IS NULL")
+      .getMany();
+
+    return {
+      data: {
+        filters: filters.map((f) => ({ id: Number(f.id), name: f.name })),
+      } as GetLinkedFiltersResponse,
+    };
+  };
+
+  // Helper to remove a clause ID from a clause expression string
+  const removeClauseFromExpression = (expression: string, clauseId: number): string => {
+    if (!expression) return "";
+
+    // Pattern to match [context] equals 'ID' or [context] equals ID (with or without quotes)
+    const patterns = [
+      new RegExp(`\\[context\\]\\s*equals\\s*'${clauseId}'`, "gi"),
+      new RegExp(`\\[context\\]\\s*equals\\s*${clauseId}(?!\\d)`, "gi"),
+      new RegExp(`\\[context\\]\\s*=\\s*'${clauseId}'`, "gi"),
+      new RegExp(`\\[context\\]\\s*=\\s*${clauseId}(?!\\d)`, "gi"),
+    ];
+
+    let result = expression;
+    for (const pattern of patterns) {
+      result = result.replace(pattern, "");
+    }
+
+    // Clean up orphaned operators (and/or at start, end, or doubled)
+    result = result
+      .replace(/\(\s*(and|or)\s*/gi, "(") // Remove operator after opening paren
+      .replace(/\s*(and|or)\s*\)/gi, ")") // Remove operator before closing paren
+      .replace(/\s+(and|or)\s+(and|or)\s+/gi, " $1 ") // Remove doubled operators
+      .replace(/^\s*(and|or)\s+/gi, "") // Remove operator at start
+      .replace(/\s+(and|or)\s*$/gi, "") // Remove operator at end
+      .replace(/\(\s*\)/g, "") // Remove empty parentheses
+      .trim();
+
+    // If only empty parens or whitespace left, return empty
+    if (!result || result === "()" || result === "( )") {
+      return "";
+    }
+
+    return result;
+  };
+
+  const deleteClause = async (id: number) => {
+    const clauseRepo = AppDataSource.getRepository(XClause);
+    const filterClauseRepo = AppDataSource.getRepository(XFilterClause);
+    const filterRepo = AppDataSource.getRepository(XFilter);
+
+    const existingClause = await clauseRepo.findOne({
+      where: { id, deleted_at: IsNull() },
+    });
+    if (!existingClause) {
+      throw fastify.httpErrors.notFound(fastify.t("clauses.errors.notFound", { id }));
+    }
+
+    // Get all linked filter IDs
+    const linkedFilterClauses = await filterClauseRepo.find({
       where: {
         clause_id: id,
         deleted_at: IsNull(),
       },
     });
-    return filterClause ? true : false;
-  };
 
-  const canMakeAction = async (id: number) => {
-    return {
-      data: {
-        can_make_action: !(await checkIfClauseIsConnectedToFilter(id)),
-      } as unknown as canPerformActionResponse,
-    };
-  };
+    if (linkedFilterClauses.length > 0) {
+      // Get the filter IDs
+      const filterIds = linkedFilterClauses.map((fc) => fc.filter_id);
 
-  const deleteClause = async (id: number) => {
-    const clauseRepo = AppDataSource.getRepository(XClause);
-    const existingClause = await clauseRepo.findOne({
-      where: { id, deleted_at: IsNull() },
-    });
-    if (!existingClause) {
-      throw fastify.httpErrors.notFound(`Clause with id ${id} not found`);
+      // Update each linked filter to remove the clause from its JSON
+      const filtersToUpdate = await filterRepo.find({
+        where: filterIds.map((filterId) => ({ id: filterId, deleted_at: IsNull() })),
+      });
+
+      for (const filter of filtersToUpdate) {
+        try {
+          const filterData = JSON.parse(filter.filter);
+
+          // Remove clause ID from ids array
+          if (filterData.post?.clauses?.ids) {
+            filterData.post.clauses.ids = filterData.post.clauses.ids.filter(
+              (clauseId: number) => clauseId !== id,
+            );
+            // If ids array is empty, remove the clauses object or set to undefined
+            if (filterData.post.clauses.ids.length === 0) {
+              delete filterData.post.clauses.ids;
+            }
+          }
+
+          // Remove clause from clause expression string
+          if (filterData.post?.clauses?.clause) {
+            filterData.post.clauses.clause = removeClauseFromExpression(
+              filterData.post.clauses.clause,
+              id,
+            );
+            // If clause expression is empty, remove it
+            if (!filterData.post.clauses.clause) {
+              delete filterData.post.clauses.clause;
+            }
+          }
+
+          // If clauses object is now empty, remove it
+          if (filterData.post?.clauses && Object.keys(filterData.post.clauses).length === 0) {
+            delete filterData.post.clauses;
+          }
+
+          // Save the updated filter
+          filter.filter = JSON.stringify(filterData);
+          filter.updated_at = new Date();
+          await filterRepo.save(filter);
+        } catch (error) {
+          console.error(`Error updating filter ${filter.id}:`, error);
+          // Continue with other filters even if one fails
+        }
+      }
+
+      // Soft-delete all XFilterClause records linked to this clause
+      await filterClauseRepo.softRemove(linkedFilterClauses);
     }
-    // check if the clause is connected to any filter?
-    if (await checkIfClauseIsConnectedToFilter(id)) {
-      throw fastify.httpErrors.badRequest(
-        `Clause with id ${id} is connected to a filter and cannot be deleted`,
-      );
-    }
 
-    // delete the clause
+    // Delete the clause
     await clauseRepo.softRemove(existingClause);
     return {
       data: {
         success: true,
-        message: `Clause with id ${id} deleted successfully`,
+        message: fastify.t("clauses.messages.deleted"),
       } as unknown as DeleteResponse,
     };
   };
@@ -338,7 +453,7 @@ export default fp(async (fastify) => {
     getClause,
     updateClauseStatistics,
     getClauseStatistics,
-    canMakeAction,
+    getLinkedFilters,
     deleteClause,
   });
 });
@@ -369,7 +484,7 @@ declare module "fastify" {
       getClause: (id: number) => Promise<{ data: GetClauseResponse }>;
       updateClauseStatistics: (id: number) => Promise<{ data: GetClauseStatisticsResponse }>;
       getClauseStatistics: (id: number) => Promise<{ data: GetClauseStatisticsResponse }>;
-      canMakeAction: (id: number) => Promise<{ data: canPerformActionResponse }>;
+      getLinkedFilters: (id: number) => Promise<{ data: GetLinkedFiltersResponse }>;
       deleteClause: (id: number) => Promise<{ data: DeleteResponse }>;
     };
   }

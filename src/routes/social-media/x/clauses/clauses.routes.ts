@@ -13,9 +13,9 @@ import {
 } from "./schemas/createOrUpdate.schema";
 import { deleteSchema, deleteSchemaType } from "./schemas/deleteSchema.schema";
 import {
-  canPerformActionSchema,
-  canPerformActionSchemaType,
-} from "./schemas/canPerformAction.schema";
+  getLinkedFiltersSchema,
+  getLinkedFiltersSchemaType,
+} from "./schemas/getLinkedFilters.schema";
 import {
   getClauseStatisticsSchema,
   getClauseStatisticsSchemaType,
@@ -104,13 +104,13 @@ const clause: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     },
   });
 
-  fastify.route<canPerformActionSchemaType>({
+  fastify.route<getLinkedFiltersSchemaType>({
     method: "GET",
-    url: "/canPerformAction/:id",
-    schema: canPerformActionSchema,
+    url: "/:id/linked-filters",
+    schema: getLinkedFiltersSchema,
     handler: async (request) => {
       const { id } = request.params;
-      const { data } = await fastify.clauseService.canMakeAction(Number(id));
+      const { data } = await fastify.clauseService.getLinkedFilters(Number(id));
       return data;
     },
   });

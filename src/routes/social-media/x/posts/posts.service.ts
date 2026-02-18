@@ -3,24 +3,17 @@ import { TResponse as GetAllPostsResponse } from "./schemas/getPosts.schema";
 import { TResponse as GetAllRepliesResponse } from "./schemas/getReplies.schema";
 import { XDataSource } from "../../../../config/database";
 import { Post } from "../../../../database/entity/Post.entity";
-import { In, Not, IsNull, And, Raw } from "typeorm";
-import { BaseFilter, Filter, generateFilterQuery } from "../../../../helper/filterQueryGenerator";
+import { Not, IsNull, And, Raw } from "typeorm";
+import {
+  Filter,
+  generateFilterQuery,
+  getPostsBaseFilter,
+} from "../../../../helper/filterQueryGenerator";
 import { TResponse as GetPostResponse } from "./schemas/getPost.schema";
 import { TFilter as dataFilterType } from "../../../../models/types/comment.type";
 export default fp(async (fastify) => {
   const getAllPosts = async (filter: dataFilterType | undefined, skip: number, take: number) => {
-    // query
-    const whereClause = await generateFilterQuery(
-      filter as Filter,
-      {
-        text: And(
-          Not(IsNull()),
-          Raw((alias) => `LEN(${alias}) > 0`),
-        ),
-        post_type: Not("retweet"),
-      } as BaseFilter,
-      fastify,
-    );
+    const whereClause = await generateFilterQuery(filter as Filter, getPostsBaseFilter(), fastify);
     const postRepo = XDataSource.getRepository(Post);
     // Build order object based on field type
     let orderBy: any = { posted_at: "asc" };

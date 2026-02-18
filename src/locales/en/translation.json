@@ -15,12 +15,48 @@
   },
   "filters": {
     "messages": {
-      "deleted": "Filter deleted successfully"
+      "deleted": "Filter deleted successfully",
+      "leftFilter": "You have successfully left the shared filter"
     },
     "errors": {
       "notFound": "Filter with id {{id}} not found",
       "typeCannotBeChanged": "Type cannot be changed",
-      "nameAlreadyExistsWithSameType": "Filter name already exists with the same type"
+      "nameAlreadyExistsWithSameType": "Filter name already exists with the same type",
+      "sharedWithUserIdsRequired": "Shared with user IDs are required for shared filters",
+      "cannotLeaveOwnFilter": "You cannot leave your own filter",
+      "cannotLeavePublicFilter": "You cannot leave a public filter",
+      "shareNotFound": "You are not a member of this shared filter"
+    }
+  },
+  "clauses": {
+    "messages": {
+      "deleted": "Clause deleted successfully"
+    },
+    "errors": {
+      "notFound": "Clause with id {{id}} not found",
+      "nameAlreadyExists": "Clause with name '{{name}}' already exists"
+    }
+  },
+  "userManagement": {
+    "errors": {
+      "adminPermissionRequired": "Admin permission required",
+      "userNotFound": "User not found",
+      "nationalIdRequired": "National ID is required",
+      "userAlreadyExists": "User with this national ID already exists",
+      "fieldRequired": "At least one field (status or permissionIds) must be provided",
+      "cannotModifySelf": "Cannot modify your own user account",
+      "invalidPermissionIds": "Invalid permission IDs: {{ids}}",
+      "updateFailed": "Failed to update user. Please try again.",
+      "userIdRequired": "User ID is required"
+    },
+    "messages": {
+      "userCreated": "User created successfully",
+      "userUpdated": "User updated successfully"
+    },
+    "history": {
+      "userCreated": "User created",
+      "statusUpdated": "User status updated",
+      "permissionsUpdated": "Permissions updated"
     }
   }
 }

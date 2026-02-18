@@ -1,9 +1,15 @@
 import fp from "fastify-plugin";
 import { TFilter as DataFilterType } from "../../../../models/types/comment.type";
-import { In, IsNull } from "typeorm";
+import { In } from "typeorm";
 import { XDataSource } from "../../../../config/database";
 import { Post } from "../../../../database/entity/Post.entity";
-import { BaseFilter, Filter, generateFilterQuery } from "../../../../helper/filterQueryGenerator";
+import {
+  BaseFilter,
+  Filter,
+  generateFilterQuery,
+  getPostsBaseFilter,
+  getTextFilter,
+} from "../../../../helper/filterQueryGenerator";
 import { TResponse as GetGeneralStatisticsResponse } from "./schemas/statistics/getGeneralStatistics.schema";
 import { TResponse as GetAllDetailedStatisticsResponse } from "./schemas/statistics/getDetailedStatistics.schema";
 import { TResponse as GetSentimentStatisticsResponse } from "./schemas/statistics/getSentimentStatistics.schema";
@@ -13,29 +19,43 @@ export type GroupBy = "day" | "month" | "quarter" | "year" | "hour" | "week";
 export default fp(async (fastify) => {
   const getGeneralStatistics = async (filter: DataFilterType | undefined) => {
     const postRepo = XDataSource.getRepository(Post);
+    const generalFilter = await generateFilterQuery(
+      filter as Filter,
+      getPostsBaseFilter(),
+      fastify,
+    );
 
-    // Generate all filter queries first
-    const generalFilter = await generateFilterQuery(filter as Filter, {} as BaseFilter, fastify);
+    // Use setFindOptions with getCount (same approach as posts list) for consistent counts
+    const qb = postRepo.createQueryBuilder("post").setFindOptions({
+      where: generalFilter,
+      relations: { user: true },
+    });
+    const generalCount = await qb.getCount();
 
-    const qb = postRepo
+    // Get breakdown by post_type using GROUP BY (single efficient query)
+    const breakdownQb = postRepo
       .createQueryBuilder("post")
       .leftJoin("post.user", "user")
-      .select([
-        "SUM(CASE WHEN post.post_type = 'post' THEN 1 ELSE 0 END) AS posts_count",
-        "SUM(CASE WHEN post.post_type = 'quote' THEN 1 ELSE 0 END) AS quotes_count",
-        "SUM(CASE WHEN post.post_type = 'replied_to' THEN 1 ELSE 0 END) AS replies_count",
-        "SUM(CASE WHEN post.post_type = 'post' OR post.post_type = 'quote' OR post.post_type = 'replied_to' THEN 1 ELSE 0 END) AS general_count",
-      ]);
+      .select("post.post_type", "post_type")
+      .addSelect("COUNT(*)", "count")
+      .where(generalFilter)
+      .groupBy("post.post_type");
 
-    qb.where(generalFilter);
-    const result = await qb.getRawOne();
+    const breakdownResults = await breakdownQb.getRawMany();
+    const breakdown = breakdownResults.reduce(
+      (acc, row) => {
+        acc[row.post_type] = parseInt(row.count, 10);
+        return acc;
+      },
+      { post: 0, quote: 0, replied_to: 0 } as Record<string, number>,
+    );
 
     return {
       data: {
-        general: parseInt(result?.general_count || "0", 10),
-        quote: parseInt(result?.quotes_count || "0", 10),
-        replies: parseInt(result?.replies_count || "0", 10),
-        posts: parseInt(result?.posts_count || "0", 10),
+        general: generalCount,
+        quote: breakdown.quote || 0,
+        replies: breakdown.replied_to || 0,
+        posts: breakdown.post || 0,
       },
     };
   };
@@ -114,14 +134,10 @@ export default fp(async (fastify) => {
     groupBy: GroupBy,
     filter: DataFilterType | undefined,
   ) => {
-    // normalize post types.
     const postTypes = type === "general" ? In(["post", "quote", "replied_to"]) : type;
-
     const filterQuery = await generateFilterQuery(
       filter as Filter,
-      {
-        post_type: postTypes,
-      } as BaseFilter,
+      { text: getTextFilter(), post_type: postTypes } as BaseFilter,
       fastify,
     );
 
@@ -170,9 +186,11 @@ export default fp(async (fastify) => {
 
   const getSentimentStatistics = async (filter?: DataFilterType) => {
     const postRepo = XDataSource.getRepository(Post);
-
-    // Generate all filter queries first
-    const filterQuery = await generateFilterQuery(filter as Filter, {}, fastify);
+    const filterQuery = await generateFilterQuery(
+      filter as Filter,
+      { text: getTextFilter(), post_type: In(["post", "quote", "replied_to"]) } as BaseFilter,
+      fastify,
+    );
 
     const qb = postRepo
       .createQueryBuilder("post")

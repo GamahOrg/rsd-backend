@@ -16,7 +16,10 @@
     "lint": "eslint 'src/**/*.{ts,tsx}'",
     "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
     "format": "prettier -c .",
-    "format:write": "prettier -w ."
+    "format:write": "prettier -w .",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:ci": "vitest run --reporter=junit --reporter=default --outputFile.junit=test-results/junit.xml"
   },
   "keywords": [
     "fastify",
@@ -28,25 +31,33 @@
   "license": "ISC",
   "dependencies": {
     "@fastify/autoload": "^6.3.1",
-    "@fastify/cors": "^11.1.0",
+    "@fastify/cors": "^9.0.1",
     "@fastify/rate-limit": "^9.1.0",
     "@fastify/sensible": "^5.6.0",
     "@fastify/swagger": "^8.12.0",
     "@fastify/swagger-ui": "^2.1.0",
     "@fastify/type-provider-typebox": "^6.0.0",
     "@sinclair/typebox": "^0.34.41",
+    "better-auth": "^1.4.9",
+    "cors@4.29.1": "link:fastify/cors@4.29.1",
     "dotenv": "^16.6.1",
-    "fastify": "^4.24.3",
+    "fastify": "^4.29.1",
     "fastify-plugin": "^5.1.0",
     "i18next": "^25.6.2",
     "i18next-fs-backend": "^2.6.1",
     "i18next-http-middleware": "^3.8.2",
     "ioredis": "^5.3.2",
+    "jwt-decode": "^4.0.0",
+    "kysely": "^0.28.9",
     "minio": "^8.0.6",
     "mssql": "^11.0.1",
+    "pg": "^8.16.3",
     "qs": "^6.14.0",
     "reflect-metadata": "^0.1.13",
-    "typeorm": "^0.3.17"
+    "tarn": "^3.0.2",
+    "tedious": "^19.2.0",
+    "typeorm": "^0.3.17",
+    "zod": "^4.2.1"
   },
   "devDependencies": {
     "@types/mssql": "^8.1.2",
@@ -63,7 +74,8 @@
     "ts-node": "^10.9.1",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.45.0"
+    "typescript-eslint": "^8.45.0",
+    "vitest": "^4.0.18"
   },
   "packageManager": "pnpm@9.12.3"
 }

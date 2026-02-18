@@ -81,7 +81,7 @@ export class Post extends BaseEntity {
   @Column({ type: "varchar", length: 255, nullable: true })
   reply_to_username?: string;
 
-  @Column({ type: "datetime", nullable: true })
+  @Column({ type: "datetimeoffset", nullable: true })
   posted_at?: Date;
 
   @CreateDateColumn()
