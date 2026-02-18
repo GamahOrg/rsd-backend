@@ -1,6 +1,6 @@
 stages:
-  - prettier
-  - cached_build
+  - lint-and-test
+  # - cached_build
   - build
   - deploy
 
@@ -18,9 +18,10 @@ variables:
   FILE_PATH: apps/idm-rsd/backend/environments/${ENVIRONMENT}/deployment.yaml
   TAG: "$IMAGE_TAG_NAME"
   TAG_PATH: .spec.template.spec.containers[0].image
+  USE_DOCKER_DIND: true
 
 prettier-fix:
-  stage: prettier
+  stage: lint-and-test
   image: node:22
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
@@ -33,6 +34,7 @@ prettier-fix:
     - corepack enable
     - corepack prepare pnpm@latest-10 --activate
     - pnpm config set store-dir .pnpm-store
+    - echo "nameserver 10.21.11.5" > /etc/resolv.conf
   script: |
     pnpm install
     pnpm prettier --write src
@@ -58,7 +60,12 @@ prettier-fix:
     paths:
       - .pnpm-store
 
-cached_build:
+# Unit tests with JUnit report for GitLab UI
+test:
+  stage: lint-and-test
+  image:
+    name: harbor.rega.gov.sa/docker-hub-rega/node:22
+    entrypoint: [""]
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: always
@@ -69,42 +76,76 @@ cached_build:
     - if: '$CI_COMMIT_BRANCH == "development"'
       when: always
     - when: never
-  image:
-    name: harbor.rega.gov.sa/docker-hub-rega/node:22
-    entrypoint: [""]
-  stage: cached_build
   before_script:
     - npm install -g pnpm
     - npm install --global corepack@latest
     - corepack enable
     - corepack prepare pnpm@latest-10 --activate
     - pnpm config set store-dir .pnpm-store
-  script: |
-    pnpm install
-    # Prettier is already fixed in previous job, just verify
-    pnpm prettier src -c
-
-    echo "Building Fastify backend application..."
-    export BUILD_TIMESTAMP=$(date -u +"%Y/%m/%d")
-    echo "Build timestamp: $BUILD_TIMESTAMP"
-    
-    # Build TypeScript to JavaScript
-    pnpm build
-
-    echo "Build completed successfully"
+    - echo "nameserver 10.21.11.5" > /etc/resolv.conf
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm test:ci
   cache:
     key: ${CI_COMMIT_REF_SLUG}
     paths:
       - .pnpm-store
-      - node_modules/
-
+      - .vitest-cache/
   artifacts:
-    name: "${CI_PROJECT_NAME}-${CI_COMMIT_REF_SLUG}"
+    when: always
     paths:
-      - dist/
-      - package*.json
-      - node_modules/
-    expire_in: 1 hour
+      - test-results/junit.xml
+    reports:
+      junit: test-results/junit.xml
+    expire_in: 1 week
+
+# cached_build:
+#   rules:
+#     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+#       when: always
+#     - if: '$CI_COMMIT_BRANCH == "main"'
+#       when: always
+#     - if: '$CI_COMMIT_BRANCH == "staging"'
+#       when: always
+#     - if: '$CI_COMMIT_BRANCH == "development"'
+#       when: always
+#     - when: never
+#   image:
+#     name: harbor.rega.gov.sa/docker-hub-rega/node:22
+#     entrypoint: [""]
+#   stage: cached_build
+#   before_script:
+#     - npm install -g pnpm
+#     - npm install --global corepack@latest
+#     - corepack enable
+#     - corepack prepare pnpm@latest-10 --activate
+#     - pnpm config set store-dir .pnpm-store
+#   script: |
+#     pnpm install
+#     # Prettier is already fixed in previous job, just verify
+#     pnpm prettier src -c
+
+#     echo "Building Fastify backend application..."
+#     export BUILD_TIMESTAMP=$(date -u +"%Y/%m/%d")
+#     echo "Build timestamp: $BUILD_TIMESTAMP"
+
+#     # Build TypeScript to JavaScript
+#     pnpm build
+
+#     echo "Build completed successfully"
+#   cache:
+#     key: ${CI_COMMIT_REF_SLUG}
+#     paths:
+#       - .pnpm-store
+#       - node_modules/
+
+#   artifacts:
+#     name: "${CI_PROJECT_NAME}-${CI_COMMIT_REF_SLUG}"
+#     paths:
+#       - dist/
+#       - package*.json
+#       - node_modules/
+#     expire_in: 1 hour
 
 include:
   - project: "rega-softwares/rega-devops"

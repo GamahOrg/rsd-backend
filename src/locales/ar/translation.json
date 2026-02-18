@@ -15,12 +15,48 @@
   },
   "filters": {
     "messages": {
-      "deleted": "تم حذف الفلتر بنجاح"
+      "deleted": "تم حذف التصفية بنجاح",
+      "leftFilter": "تم إزالتك من التصفية المشترك بنجاح"
     },
     "errors": {
-      "notFound": "الفلتر رقم {{id}} غير موجود",
+      "notFound": "التصفية رقم {{id}} غير موجودة",
       "typeCannotBeChanged": "لا يمكن تغيير النوع",
-      "nameAlreadyExistsWithSameType": "الاسم مسجل مسبقا بنفس النوع"
+      "nameAlreadyExistsWithSameType": "الاسم مسجل مسبقا بنفس النوع",
+      "sharedWithUserIdsRequired": "معرفات المستخدمين المشتركين مطلوبة للتصفيات المشتركة",
+      "cannotLeaveOwnFilter": "لا يمكنك مغادرة التصفية الخاص بك",
+      "cannotLeavePublicFilter": "لا يمكنك مغادرة التصفية العامة",
+      "shareNotFound": "أنت لست عضواً في هذا التصفية المشتركة"
+    }
+  },
+  "clauses": {
+    "messages": {
+      "deleted": "تم حذف المحور بنجاح"
+    },
+    "errors": {
+      "notFound": "المحور رقم {{id}} غير موجود",
+      "nameAlreadyExists": "اسم المحور '{{name}}' موجود مسبقاً"
+    }
+  },
+  "userManagement": {
+    "errors": {
+      "adminPermissionRequired": "الصلاحية الإدارية مطلوبة",
+      "userNotFound": "المستخدم غير موجود",
+      "nationalIdRequired": "رقم الهوية الوطنية مطلوب",
+      "userAlreadyExists": "المستخدم برقم الهوية الوطنية هذه موجود بالفعل",
+      "fieldRequired": "يجب توفير حقل واحد على الأقل (الحالة أو معرفات الصلاحيات)",
+      "cannotModifySelf": "لا يمكن تعديل حساب المستخدم الخاص بك",
+      "invalidPermissionIds": "معرفات الصلاحيات غير صالحة: {{ids}}",
+      "updateFailed": "فشل تحديث المستخدم. يرجى المحاولة مرة أخرى.",
+      "userIdRequired": "معرف المستخدم مطلوب"
+    },
+    "messages": {
+      "userCreated": "تم إنشاء المستخدم بنجاح",
+      "userUpdated": "تم تحديث المستخدم بنجاح"
+    },
+    "history": {
+      "userCreated": "تم إنشاء المستخدم",
+      "statusUpdated": "تم تحديث حالة المستخدم",
+      "permissionsUpdated": "تم تحديث الصلاحيات"
     }
   }
 }

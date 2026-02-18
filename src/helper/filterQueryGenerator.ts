@@ -9,6 +9,7 @@ import {
   Or,
   And,
   Not,
+  Raw,
 } from "typeorm";
 import { FastifyInstance } from "fastify";
 
@@ -21,17 +22,41 @@ export interface BaseFilter {
   [key: string]: string[] | string | FindOperator<string>;
 }
 
+/**
+ * Text filter for posts - excludes posts with null or empty text.
+ */
+export const getTextFilter = () =>
+  And(
+    Not(IsNull()),
+    Raw((alias) => `LEN(${alias}) > 0`),
+  );
+
+/**
+ * Standard base filter for posts list and statistics queries.
+ * Excludes posts with null/empty text and retweets.
+ * Use this to ensure consistent counts across posts list and statistics.
+ */
+export const getPostsBaseFilter = (): BaseFilter => ({
+  text: getTextFilter(),
+  post_type: Not("retweet"),
+});
+
+// Reusable clause expression structure
+interface ClauseExpression {
+  ids?: string[];
+  clause?: string;
+}
+
 export interface Filter {
   post?: {
     posted_at?: DateRange;
     sentiment?: string[];
     post_type?: string[];
-    keywords?: string[];
     country?: string[];
-    clauses?: {
-      ids?: number[];
-      clause?: string;
-    };
+    clauses?: ClauseExpression;
+    // Direct value clause expressions
+    keyword?: ClauseExpression;
+    excluded_keyword?: ClauseExpression;
     metrics?: {
       like_count?: { min?: number; max?: number };
       retweet_count?: { min?: number; max?: number };
@@ -44,10 +69,19 @@ export interface Filter {
   user?: {
     from?: string[];
     to?: string[];
+    from_account?: ClauseExpression;
+    to_account?: ClauseExpression;
+    excluded_account?: ClauseExpression;
     verified_type?: string[];
     metrics?: {
       followers_count?: { min?: number; max?: number };
     };
+  };
+  // Quick Search - searches in text, accounts, or post_id
+  quickSearch?: {
+    text?: string; // Search in post text: LIKE '%text%'
+    accounts?: string[]; // Search in usernames: LIKE 'account%' (OR) - same as regular user search
+    post_id?: string; // Search by post ID: exact match
   };
 }
 
@@ -62,6 +96,43 @@ const isDefined = <T>(value: T | undefined | null): value is T =>
  */
 const escapeLikePattern = (text: string): string => {
   return text.replace(/_/g, "[_]");
+};
+
+/**
+ * Build quick search filter for post and user relations
+ *
+ * Supports:
+ * - text: Search in post text with LIKE '%text%'
+ * - accounts: Search in usernames with LIKE 'account%' (same as regular user search)
+ * - post_id: Exact match on post_id
+ */
+const buildQuickSearchFilter = (
+  quickSearch?: Filter["quickSearch"],
+): { postFilter: Record<string, unknown>; userFilter: Record<string, unknown> } => {
+  if (!quickSearch) return { postFilter: {}, userFilter: {} };
+
+  let postFilter: Record<string, unknown> = {};
+  let userFilter: Record<string, unknown> = {};
+
+  // Post ID search - exact match
+  if (quickSearch.post_id) {
+    postFilter = { post_id: quickSearch.post_id };
+  }
+  // Text search - LIKE '%text%'
+  else if (quickSearch.text) {
+    const escapedText = escapeLikePattern(quickSearch.text);
+    postFilter = { text: Like(`%${escapedText}%`) };
+  }
+  // Accounts search - LIKE 'account%' (same as regular user search)
+  else if (quickSearch.accounts && quickSearch.accounts.length > 0) {
+    const escapedAccounts = quickSearch.accounts.map((a) => Like(`${escapeLikePattern(a)}%`));
+
+    userFilter = {
+      username: escapedAccounts.length === 1 ? escapedAccounts[0] : Or(...escapedAccounts),
+    };
+  }
+
+  return { postFilter, userFilter };
 };
 
 const buildNumberRangeFilter = (field: string, range: NumberRange) => {
@@ -159,8 +230,6 @@ const buildUserFilters = (filter: Filter) => {
   };
 };
 
-const makeTextExpr = (kw: string) => Like(`% ${escapeLikePattern(kw)} %`);
-
 export const generateFilterQuery = async (
   filter?: Filter,
   baseFilter?: BaseFilter,
@@ -168,11 +237,47 @@ export const generateFilterQuery = async (
 ) => {
   if (!filter) return {};
 
-  // Build clause filter from expression tree
+  // Build combined clause filter from all clause expressions
   let clauseFilterResult: ClauseFilterResult | null = null;
-  if (filter.post?.clauses && filter.post.clauses.clause && fastify) {
-    clauseFilterResult = await buildClauseFilterFromExpression(filter.post.clauses.clause, fastify);
+  if (fastify) {
+    // Collect all clause expressions
+    const clauseExpressions: string[] = [];
+
+    // clauses (clause IDs from database)
+    if (filter.post?.clauses?.clause) {
+      clauseExpressions.push(filter.post.clauses.clause);
+    }
+    // Direct value clause expressions
+    if (filter.post?.keyword?.clause) {
+      clauseExpressions.push(filter.post.keyword.clause);
+    }
+    if (filter.post?.excluded_keyword?.clause) {
+      clauseExpressions.push(filter.post.excluded_keyword.clause);
+    }
+    if (filter.user?.from_account?.clause) {
+      clauseExpressions.push(filter.user.from_account.clause);
+    }
+    if (filter.user?.to_account?.clause) {
+      clauseExpressions.push(filter.user.to_account.clause);
+    }
+    if (filter.user?.excluded_account?.clause) {
+      clauseExpressions.push(filter.user.excluded_account.clause);
+    }
+
+    // Combine all expressions with AND
+    if (clauseExpressions.length > 0) {
+      const combinedExpression =
+        clauseExpressions.length === 1
+          ? clauseExpressions[0]
+          : `(${clauseExpressions.join(" and ")})`;
+
+      clauseFilterResult = await buildUnifiedClauseFilter(combinedExpression, fastify);
+    }
   }
+
+  // Build quick search filters (for post and user)
+  const { postFilter: quickSearchPostFilter, userFilter: quickSearchUserFilter } =
+    buildQuickSearchFilter(filter.quickSearch);
 
   const baseWhere = {
     ...baseFilter,
@@ -197,19 +302,14 @@ export const generateFilterQuery = async (
     ...buildNumberRangeFilter("impression_count", filter.post?.metrics?.impression_count),
     ...buildNumberRangeFilter("media_count", filter.post?.metrics?.media_count),
     ...buildUserFilters(filter),
+    // Quick search post filters (text or post_id)
+    ...quickSearchPostFilter,
+    // Quick search user filters (accounts) - applied via user relation
+    ...(Object.keys(quickSearchUserFilter).length > 0 ? { user: quickSearchUserFilter } : {}),
   };
 
-  // Build result based on keywords and clauses
-  let result: any[] = [];
-
-  if (filter?.post?.keywords?.length) {
-    result = filter.post.keywords.map((kw: string) => ({
-      ...baseWhere,
-      text: makeTextExpr(kw),
-    }));
-  } else {
-    result = [baseWhere];
-  }
+  // Build result
+  let result: any[] = [baseWhere];
 
   // Add clause filter to all results if it exists
   if (clauseFilterResult) {
@@ -285,140 +385,11 @@ interface Token {
   value: string;
 }
 
-// Token types for clause ID expression parsing
-type ClauseTokenType = "CLAUSEID" | "AND" | "OR" | "LPAREN" | "RPAREN" | "EQUALS" | "CONTEXT";
-
-interface ClauseToken {
-  type: ClauseTokenType;
-  value: string | number;
-}
-
-// Expression tree for clause IDs
-type ClauseExpressionNode =
-  | { type: "CLAUSEID"; id: number }
-  | { type: "AND"; left: ClauseExpressionNode; right: ClauseExpressionNode }
-  | { type: "OR"; left: ClauseExpressionNode; right: ClauseExpressionNode };
-
 // Expression tree node types
 type ExpressionNode =
   | { type: "TERM"; value: string; isNegated?: boolean }
   | { type: "AND"; left: ExpressionNode; right: ExpressionNode }
   | { type: "OR"; left: ExpressionNode; right: ExpressionNode };
-
-/**
- * Tokenize a clause ID expression like "([context] equals 1 and [context] equals 2 or [context] equals 3)"
- * or "([context] = '43')" with quoted values
- */
-const tokenizeClauseExpression = (clauseExpr: string): ClauseToken[] => {
-  if (!clauseExpr) return [];
-
-  const tokens: ClauseToken[] = [];
-  // Pattern to match: [context], equals/=, numbers (quoted or unquoted), and, or, parentheses
-  const pattern = /\[context\]|equals|=|'(\d+)'|(\d+)|\b(and|or)\b|\(|\)/gi;
-  let match;
-
-  while ((match = pattern.exec(clauseExpr)) !== null) {
-    if (match[1]) {
-      // It's a quoted number (clause ID) like '43'
-      tokens.push({ type: "CLAUSEID", value: parseInt(match[1], 10) });
-    } else if (match[2]) {
-      // It's an unquoted number (clause ID)
-      tokens.push({ type: "CLAUSEID", value: parseInt(match[2], 10) });
-    } else if (match[0].toLowerCase() === "[context]") {
-      tokens.push({ type: "CONTEXT", value: "[context]" });
-    } else if (match[0].toLowerCase() === "equals" || match[0] === "=") {
-      tokens.push({ type: "EQUALS", value: "equals" });
-    } else if (match[3]) {
-      // It's an operator (and/or)
-      const operator = match[3].toUpperCase();
-      if (operator === "AND") {
-        tokens.push({ type: "AND", value: "AND" });
-      } else if (operator === "OR") {
-        tokens.push({ type: "OR", value: "OR" });
-      }
-    } else if (match[0] === "(") {
-      tokens.push({ type: "LPAREN", value: "(" });
-    } else if (match[0] === ")") {
-      tokens.push({ type: "RPAREN", value: ")" });
-    }
-  }
-
-  return tokens;
-};
-
-/**
- * Parse clause ID tokens into an expression tree
- * This handles expressions like: ([context] equals 1 and [context] equals 2 or [context] equals 3)
- */
-const parseClauseExpression = (tokens: ClauseToken[]): ClauseExpressionNode | null => {
-  let position = 0;
-
-  const peek = (): ClauseToken | undefined => tokens[position];
-  const consume = (): ClauseToken | undefined => tokens[position++];
-
-  // Parse OR expressions (lowest precedence)
-  const parseOrExpression = (): ClauseExpressionNode | null => {
-    let left = parseAndExpression();
-    if (!left) return null;
-
-    while (peek()?.type === "OR") {
-      consume(); // consume OR
-      const right = parseAndExpression();
-      if (!right) return left;
-      left = { type: "OR", left, right };
-    }
-
-    return left;
-  };
-
-  // Parse AND expressions (higher precedence)
-  const parseAndExpression = (): ClauseExpressionNode | null => {
-    let left = parsePrimary();
-    if (!left) return null;
-
-    while (peek()?.type === "AND") {
-      consume(); // consume AND
-      const right = parsePrimary();
-      if (!right) return left;
-      left = { type: "AND", left, right };
-    }
-
-    return left;
-  };
-
-  // Parse primary expressions (clause IDs, parentheses)
-  const parsePrimary = (): ClauseExpressionNode | null => {
-    const token = peek();
-    if (!token) return null;
-
-    // Handle parentheses
-    if (token.type === "LPAREN") {
-      consume(); // consume (
-      const expr = parseOrExpression();
-      if (peek()?.type === "RPAREN") {
-        consume(); // consume )
-      }
-      return expr;
-    }
-
-    // Handle [context] equals <id>
-    if (token.type === "CONTEXT") {
-      consume(); // consume [context]
-      if (peek()?.type === "EQUALS") {
-        consume(); // consume equals
-        const idToken = peek();
-        if (idToken?.type === "CLAUSEID") {
-          consume();
-          return { type: "CLAUSEID", id: idToken.value as number };
-        }
-      }
-    }
-
-    return null;
-  };
-
-  return parseOrExpression();
-};
 
 /**
  * Tokenize a clause string into terms and operators
@@ -602,24 +573,6 @@ const expressionToTypeORM = (
 };
 
 /**
- * Build a TypeORM filter from a clause expression
- */
-async function buildClauseFilterFromExpression(
-  clauseExpression: string,
-  fastify: FastifyInstance,
-): Promise<ClauseFilterResult | null> {
-  // Parse the clause expression
-  const tokens = tokenizeClauseExpression(clauseExpression);
-  if (tokens.length === 0) return null;
-
-  const expressionTree = parseClauseExpression(tokens);
-  if (!expressionTree) return null;
-
-  // Convert the expression tree to TypeORM operators
-  return await clauseExpressionToTypeORM(expressionTree, fastify);
-}
-
-/**
  * Result structure for clause filters
  */
 export interface ClauseFilterResult {
@@ -778,100 +731,325 @@ export async function fetchClauseAsTypeORM(
   }
 }
 
+// =============================================================================
+// UNIFIED CLAUSE FILTER - Handles all context types in one expression
+// =============================================================================
+
+// Supported context types for unified clause expressions
+type UnifiedContextType =
+  | "context" // Clause ID from database
+  | "keyword" // Text keyword (LIKE '% value %')
+  | "excluded_keyword" // Excluded text keyword (NOT LIKE '% value %')
+  | "from_account" // Username (LIKE 'value')
+  | "to_account" // Reply to username (LIKE 'value')
+  | "excluded_account"; // Excluded account (NOT LIKE on both username AND reply_to_username)
+
+// Token types for unified clause expression
+type UnifiedClauseTokenType =
+  | "CONTEXT_TYPE"
+  | "AND"
+  | "OR"
+  | "LPAREN"
+  | "RPAREN"
+  | "EQUALS"
+  | "VALUE";
+
+interface UnifiedClauseToken {
+  type: UnifiedClauseTokenType;
+  value: string;
+  contextType?: UnifiedContextType;
+}
+
+// Expression tree for unified clauses
+type UnifiedExpressionNode =
+  | { type: "VALUE"; value: string; contextType: UnifiedContextType }
+  | { type: "AND"; left: UnifiedExpressionNode; right: UnifiedExpressionNode }
+  | { type: "OR"; left: UnifiedExpressionNode; right: UnifiedExpressionNode };
+
 /**
- * Convert a clause expression tree to TypeORM operators
+ * Tokenize a unified clause expression that can contain multiple context types
+ * e.g., "([context] equals '47' and [excluded_keyword] equals 'spam' and [from_account] equals 'user1')"
  */
-async function clauseExpressionToTypeORM(
-  node: ClauseExpressionNode,
+function tokenizeUnifiedClauseExpression(expr: string): UnifiedClauseToken[] {
+  if (!expr) return [];
+
+  const tokens: UnifiedClauseToken[] = [];
+  // Pattern to match: [context_type], equals/=, 'value' or number, and, or, parentheses
+  const pattern =
+    /\[(context|keyword|excluded_keyword|from_account|to_account|excluded_account)\]|equals|=|'([^']+)'|(\d+)|\b(and|or)\b|\(|\)/gi;
+  let match;
+  let lastContextType: UnifiedContextType | undefined;
+
+  while ((match = pattern.exec(expr)) !== null) {
+    if (match[1]) {
+      // It's a context type like [context], [keyword], [excluded_keyword], etc.
+      lastContextType = match[1].toLowerCase() as UnifiedContextType;
+      tokens.push({ type: "CONTEXT_TYPE", value: match[1], contextType: lastContextType });
+    } else if (match[2]) {
+      // It's a quoted value like 'KSA' or '47'
+      tokens.push({ type: "VALUE", value: match[2], contextType: lastContextType });
+    } else if (match[3]) {
+      // It's an unquoted number (for backward compatibility with clause IDs)
+      tokens.push({ type: "VALUE", value: match[3], contextType: lastContextType });
+    } else if (match[0].toLowerCase() === "equals" || match[0] === "=") {
+      tokens.push({ type: "EQUALS", value: "equals" });
+    } else if (match[4]) {
+      const operator = match[4].toUpperCase();
+      tokens.push({ type: operator as "AND" | "OR", value: operator });
+    } else if (match[0] === "(") {
+      tokens.push({ type: "LPAREN", value: "(" });
+    } else if (match[0] === ")") {
+      tokens.push({ type: "RPAREN", value: ")" });
+    }
+  }
+
+  return tokens;
+}
+
+/**
+ * Parse unified clause tokens into an expression tree
+ */
+function parseUnifiedClauseExpression(tokens: UnifiedClauseToken[]): UnifiedExpressionNode | null {
+  let position = 0;
+
+  const peek = (): UnifiedClauseToken | undefined => tokens[position];
+  const consume = (): UnifiedClauseToken | undefined => tokens[position++];
+
+  const parseOrExpression = (): UnifiedExpressionNode | null => {
+    let left = parseAndExpression();
+    if (!left) return null;
+
+    while (peek()?.type === "OR") {
+      consume();
+      const right = parseAndExpression();
+      if (!right) return left;
+      left = { type: "OR", left, right };
+    }
+    return left;
+  };
+
+  const parseAndExpression = (): UnifiedExpressionNode | null => {
+    let left = parsePrimary();
+    if (!left) return null;
+
+    while (peek()?.type === "AND") {
+      consume();
+      const right = parsePrimary();
+      if (!right) return left;
+      left = { type: "AND", left, right };
+    }
+    return left;
+  };
+
+  const parsePrimary = (): UnifiedExpressionNode | null => {
+    const token = peek();
+    if (!token) return null;
+
+    if (token.type === "LPAREN") {
+      consume();
+      const expr = parseOrExpression();
+      if (peek()?.type === "RPAREN") consume();
+      return expr;
+    }
+
+    // Handle [context_type] equals 'value'
+    if (token.type === "CONTEXT_TYPE") {
+      const contextType = token.contextType!;
+      consume(); // consume [context_type]
+      if (peek()?.type === "EQUALS") {
+        consume(); // consume equals
+        const valueToken = peek();
+        if (valueToken?.type === "VALUE") {
+          consume();
+          return { type: "VALUE", value: valueToken.value, contextType };
+        }
+      }
+    }
+
+    return null;
+  };
+
+  return parseOrExpression();
+}
+
+/**
+ * Helper to combine two operators with a combiner function
+ */
+function combineOperators(
+  left: FindOperator<string> | null,
+  right: FindOperator<string> | null,
+  combiner: typeof And | typeof Or,
+): FindOperator<string> | null {
+  if (left && right) return combiner(left, right);
+  return left ?? right;
+}
+
+/**
+ * Convert a single unified expression VALUE node to ClauseFilterResult
+ * Handles both direct values and clause IDs (which require DB fetch)
+ */
+async function unifiedValueToFilterResult(
+  value: string,
+  contextType: UnifiedContextType,
   fastify: FastifyInstance,
 ): Promise<ClauseFilterResult | null> {
-  if (node.type === "CLAUSEID") {
-    return await fetchClauseAsTypeORM(node.id, fastify);
+  // For [context], fetch from database
+  if (contextType === "context") {
+    const clauseId = parseInt(value, 10);
+    if (isNaN(clauseId)) return null;
+    return await fetchClauseAsTypeORM(clauseId, fastify);
+  }
+
+  // For direct value types, build the operator directly
+  const escapedValue = escapeLikePattern(value);
+
+  let textOperator: FindOperator<string> | null = null;
+  let usernameOperator: FindOperator<string> | null = null;
+  let replyToUsernameOperator: FindOperator<string> | null = null;
+
+  switch (contextType) {
+    case "keyword":
+      textOperator = Like(`% ${escapedValue} %`);
+      break;
+    case "excluded_keyword":
+      textOperator = Not(Like(`% ${escapedValue} %`));
+      break;
+    case "from_account":
+      usernameOperator = Like(escapedValue);
+      break;
+    case "to_account":
+      replyToUsernameOperator = Like(escapedValue);
+      break;
+    case "excluded_account":
+      // Exclude from BOTH username and reply_to_username
+      // For username: NOT LIKE (exclude posts FROM this account)
+      usernameOperator = Not(Like(escapedValue));
+      // For reply_to_username: Handle NULL values - posts without replies should NOT be excluded
+      // NULL NOT LIKE 'value' returns UNKNOWN (treated as FALSE), so we need: IS NULL OR NOT LIKE
+      replyToUsernameOperator = Or(IsNull(), Not(Like(escapedValue)));
+      break;
+  }
+
+  return {
+    textOperator,
+    usernameOperator,
+    replyToUsernameOperator,
+    operator: "AND", // Default operator for single values
+  };
+}
+
+/**
+ * Helper to check if a node tree contains only exclusion types (excluded_keyword or excluded_account)
+ * This is used to determine if OR should be converted to AND (De Morgan's law for exclusions)
+ */
+function isExclusionOnlyNode(node: UnifiedExpressionNode): boolean {
+  if (node.type === "VALUE") {
+    return node.contextType === "excluded_keyword" || node.contextType === "excluded_account";
+  }
+  if (node.type === "AND" || node.type === "OR") {
+    return isExclusionOnlyNode(node.left) && isExclusionOnlyNode(node.right);
+  }
+  return false;
+}
+
+/**
+ * Convert a unified expression tree to TypeORM operators
+ * This is the core recursive function that handles all context types
+ *
+ * IMPORTANT: For exclusion types (excluded_keyword, excluded_account), OR in the expression
+ * is converted to AND in the operators. This is because:
+ * - User intent: "exclude posts containing word1 OR word2"
+ * - Correct logic: NOT LIKE 'word1' AND NOT LIKE 'word2'
+ * - Wrong logic:  NOT LIKE 'word1' OR NOT LIKE 'word2' (would show posts with word1 if they don't have word2)
+ */
+async function unifiedExpressionToTypeORM(
+  node: UnifiedExpressionNode,
+  fastify: FastifyInstance,
+): Promise<ClauseFilterResult | null> {
+  if (node.type === "VALUE") {
+    return await unifiedValueToFilterResult(node.value, node.contextType, fastify);
   }
 
   if (node.type === "AND") {
-    const left = await clauseExpressionToTypeORM(node.left, fastify);
-    const right = await clauseExpressionToTypeORM(node.right, fastify);
+    const left = await unifiedExpressionToTypeORM(node.left, fastify);
+    const right = await unifiedExpressionToTypeORM(node.right, fastify);
 
     if (!left && !right) return null;
     if (!left) return right;
     if (!right) return left;
 
-    // Combine text operators
-    let textOperator: FindOperator<string> | null = null;
-    if (left.textOperator && right.textOperator) {
-      textOperator = And(left.textOperator, right.textOperator);
-    } else if (left.textOperator) {
-      textOperator = left.textOperator;
-    } else if (right.textOperator) {
-      textOperator = right.textOperator;
-    }
-
-    // Combine username operators
-    let usernameOperator: FindOperator<string> | null = null;
-    if (left.usernameOperator && right.usernameOperator) {
-      usernameOperator = And(left.usernameOperator, right.usernameOperator);
-    } else if (left.usernameOperator) {
-      usernameOperator = left.usernameOperator;
-    } else if (right.usernameOperator) {
-      usernameOperator = right.usernameOperator;
-    }
-
-    // Combine reply_to_username operators
-    let replyToUsernameOperator: FindOperator<string> | null = null;
-    if (left.replyToUsernameOperator && right.replyToUsernameOperator) {
-      replyToUsernameOperator = And(left.replyToUsernameOperator, right.replyToUsernameOperator);
-    } else if (left.replyToUsernameOperator) {
-      replyToUsernameOperator = left.replyToUsernameOperator;
-    } else if (right.replyToUsernameOperator) {
-      replyToUsernameOperator = right.replyToUsernameOperator;
-    }
-
-    // Use the operator from either left or right (they should be the same when combined with AND)
-    return { textOperator, usernameOperator, replyToUsernameOperator, operator: left.operator };
+    return {
+      textOperator: combineOperators(left.textOperator, right.textOperator, And),
+      usernameOperator: combineOperators(left.usernameOperator, right.usernameOperator, And),
+      replyToUsernameOperator: combineOperators(
+        left.replyToUsernameOperator,
+        right.replyToUsernameOperator,
+        And,
+      ),
+      operator: "AND",
+    };
   }
 
   if (node.type === "OR") {
-    const left = await clauseExpressionToTypeORM(node.left, fastify);
-    const right = await clauseExpressionToTypeORM(node.right, fastify);
+    const left = await unifiedExpressionToTypeORM(node.left, fastify);
+    const right = await unifiedExpressionToTypeORM(node.right, fastify);
 
     if (!left && !right) return null;
     if (!left) return right;
     if (!right) return left;
 
-    // Combine text operators
-    let textOperator: FindOperator<string> | null = null;
-    if (left.textOperator && right.textOperator) {
-      textOperator = Or(left.textOperator, right.textOperator);
-    } else if (left.textOperator) {
-      textOperator = left.textOperator;
-    } else if (right.textOperator) {
-      textOperator = right.textOperator;
-    }
+    // For exclusion-only OR expressions, use AND instead of OR (De Morgan's law)
+    // This ensures "exclude A or B" correctly filters out posts containing A OR B
+    const isExclusionOR = isExclusionOnlyNode(node);
+    const combiner = isExclusionOR ? And : Or;
 
-    // Combine username operators
-    let usernameOperator: FindOperator<string> | null = null;
-    if (left.usernameOperator && right.usernameOperator) {
-      usernameOperator = Or(left.usernameOperator, right.usernameOperator);
-    } else if (left.usernameOperator) {
-      usernameOperator = left.usernameOperator;
-    } else if (right.usernameOperator) {
-      usernameOperator = right.usernameOperator;
-    }
-
-    // Combine reply_to_username operators
-    let replyToUsernameOperator: FindOperator<string> | null = null;
-    if (left.replyToUsernameOperator && right.replyToUsernameOperator) {
-      replyToUsernameOperator = Or(left.replyToUsernameOperator, right.replyToUsernameOperator);
-    } else if (left.replyToUsernameOperator) {
-      replyToUsernameOperator = left.replyToUsernameOperator;
-    } else if (right.replyToUsernameOperator) {
-      replyToUsernameOperator = right.replyToUsernameOperator;
-    }
-
-    // Use the operator from either left or right (they should be the same when combined with OR)
-    return { textOperator, usernameOperator, replyToUsernameOperator, operator: left.operator };
+    return {
+      textOperator: combineOperators(left.textOperator, right.textOperator, combiner),
+      usernameOperator: combineOperators(left.usernameOperator, right.usernameOperator, combiner),
+      replyToUsernameOperator: combineOperators(
+        left.replyToUsernameOperator,
+        right.replyToUsernameOperator,
+        combiner,
+      ),
+      operator: isExclusionOR ? "AND" : "OR",
+    };
   }
 
   return null;
+}
+
+/**
+ * Build a TypeORM filter from a unified clause expression
+ *
+ * Supports all context types in a single expression:
+ * - [context] equals '47'           -> Fetches clause ID 47 from database
+ * - [keyword] equals 'KSA'          -> LIKE '% KSA %' on text field
+ * - [excluded_keyword] equals 'spam' -> NOT LIKE '% spam %' on text field
+ * - [from_account] equals 'user1'   -> LIKE 'user1' on username field
+ * - [to_account] equals 'user2'     -> LIKE 'user2' on reply_to_username field
+ * - [excluded_account] equals 'bot' -> NOT LIKE 'bot' on BOTH username AND reply_to_username
+ *
+ * @example
+ * // Mix clause IDs with direct values
+ * const expr = "([context] equals '47' and [excluded_keyword] equals 'spam' and [excluded_account] equals 'bot')";
+ * const result = await buildUnifiedClauseFilter(expr, fastify);
+ *
+ * @example
+ * // Direct values only (no DB fetch needed)
+ * const expr = "([keyword] equals 'Saudi' or [keyword] equals 'KSA') and [from_account] equals 'official'";
+ * const result = await buildUnifiedClauseFilter(expr, fastify);
+ */
+export async function buildUnifiedClauseFilter(
+  expression: string,
+  fastify: FastifyInstance,
+): Promise<ClauseFilterResult | null> {
+  if (!expression?.trim()) return null;
+
+  const tokens = tokenizeUnifiedClauseExpression(expression);
+  if (tokens.length === 0) return null;
+
+  const tree = parseUnifiedClauseExpression(tokens);
+  if (!tree) return null;
+
+  return await unifiedExpressionToTypeORM(tree, fastify);
 }

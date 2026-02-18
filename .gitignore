@@ -21,6 +21,10 @@ pids
 # Coverage directory used by tools like istanbul
 coverage/
 
+# Test results (JUnit reports)
+test-results/
+.vitest-cache/
+
 # nyc test coverage
 .nyc_output
 

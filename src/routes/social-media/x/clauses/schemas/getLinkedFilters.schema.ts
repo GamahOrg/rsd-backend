@@ -6,23 +6,28 @@ const IParams = Type.Object({
 });
 export type TParams = Static<typeof IParams>;
 
+const IFilter = Type.Object({
+  id: Type.Number(),
+  name: Type.String(),
+});
+
 const IResponse = Type.Object({
-  can_make_action: Type.Boolean(),
+  filters: Type.Array(IFilter),
 });
 
 export type TResponse = Static<typeof IResponse>;
 
-export type canPerformActionSchemaType = {
+export type getLinkedFiltersSchemaType = {
   Params: TParams;
   Response: TResponse;
   Error: TError;
 };
 
-export const canPerformActionSchema = {
+export const getLinkedFiltersSchema = {
   tags: ["clause"],
   deprecated: false,
-  summary: "can perform action",
-  description: "can perform action",
+  summary: "Get filters linked to a clause",
+  description: "Returns a list of filters that are currently using this clause",
   params: IParams,
   response: {
     200: IResponse,
