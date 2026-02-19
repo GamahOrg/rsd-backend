@@ -54,25 +54,18 @@ export default fp(async (fastify) => {
   };
 
   const getTitlesByRegion = async (filter: TTitlesByRegionFilter) => {
-    const propertyType = filter.filter?.propertyType;
     const duration = filter.filter?.duration;
+    let parametersList: DurationParam[] = [];
 
     if (!duration) {
       return { data: [] as unknown as GetTitlesByRegionResponse };
     }
-
-    const parameters: DurationParam[] = [];
     // Generate duration WHERE clause using generateDurationCond
     const durationCond = generateDurationCond(duration, 0, "WeekOfYearNumber");
-    parameters.push(...durationCond.params);
-    let paramIndex = durationCond.nextParamIndex;
 
-    // PropertyType parameter (optional)
-    let propertyTypeClause = "";
-    if (propertyType) {
-      propertyTypeClause = `AND T.PropertyUse = @${paramIndex++}`;
-      parameters.push(propertyType);
-    }
+    // Build where clause and parameters
+    const { whereClause, parameters } = generateWhereClause(filter, durationCond.nextParamIndex);
+    parametersList.push(...durationCond.params, ...parameters);
 
     const sql = `
       SELECT 
@@ -82,36 +75,25 @@ export default fp(async (fastify) => {
       WHERE ${durationCond.clause}
         AND T.requestname='First Registration'
         AND T.RegionNameAr IS NOT NULL
-        ${propertyTypeClause}
+        ${whereClause}
       GROUP BY T.RegionNameAr
       ORDER BY count DESC
     `;
-    const data = await AppDataSource.query(sql, parameters);
+    const data = await AppDataSource.query(sql, parametersList);
     return { data: data as unknown as GetTitlesByRegionResponse };
   };
 
   const getTitlesAreaByRegion = async (filter: TTitlesByRegionFilter) => {
-    const propertyType = filter.filter?.propertyType;
     const duration = filter.filter?.duration;
-
+    let parametersList: DurationParam[] = [];
     if (!duration) {
       return { data: [] as unknown as GetTitlesByRegionResponse };
     }
 
-    const parameters: DurationParam[] = [];
-
     // Generate duration WHERE clause using generateDurationCond
     const durationCond = generateDurationCond(duration, 0, "WeekOfYearNumber");
-    parameters.push(...durationCond.params);
-    let paramIndex = durationCond.nextParamIndex;
-
-    // PropertyType parameter (optional)
-    let propertyTypeClause = "";
-    if (propertyType) {
-      propertyTypeClause = `AND T.PropertyUse = @${paramIndex++}`;
-      parameters.push(propertyType);
-    }
-
+    const { whereClause, parameters } = generateWhereClause(filter, durationCond.nextParamIndex);
+    parametersList.push(...durationCond.params, ...parameters);
     const sql = `
       SELECT 
         T.RegionNameAr AS label,
@@ -120,12 +102,12 @@ export default fp(async (fastify) => {
       WHERE ${durationCond.clause}
         AND T.requestname='First Registration'
         AND T.RegionNameAr IS NOT NULL
-        ${propertyTypeClause}
+        ${whereClause}
       GROUP BY T.RegionNameAr
       ORDER BY count DESC
     `;
 
-    const data = await AppDataSource.query(sql, parameters);
+    const data = await AppDataSource.query(sql, parametersList);
     return { data: data as unknown as GetTitlesByRegionResponse };
   };
 
@@ -135,68 +117,13 @@ export default fp(async (fastify) => {
       const durationSelect = helper?.select || [];
       const durationGroupBy = helper?.groupBy || [];
       const durationOrderBy = helper?.orderBy || [];
-
-      // Build parameters array and positional placeholders
-      const parameters: DurationParam[] = [];
-
+      let parametersList: DurationParam[] = [];
       // Generate duration WHERE clause using generateDurationCond
       const durationCond = generateDurationCond(filter.filter.duration, 0, "WeekOfYearNumber");
-      parameters.push(...durationCond.params);
-      let paramIndex = durationCond.nextParamIndex;
 
-      // Region parameters (optional, multi-select)
-      let regionClause = "";
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        const regionParams = filter.filter.region
-          .map((region) => {
-            parameters.push(region);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        regionClause = `AND T.RegionNameAr IN (${regionParams})`;
-      }
-
-      // City parameters (optional, multi-select)
-      let cityClause = "";
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        const cityParams = filter.filter.city
-          .map((city) => {
-            parameters.push(city);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        cityClause = `AND T.CityNameAr IN (${cityParams})`;
-      }
-
-      // District parameters (optional, multi-select)
-      let districtClause = "";
-      if (filter.filter.district && filter.filter.district.length > 0) {
-        const districtParams = filter.filter.district
-          .map((district) => {
-            parameters.push(district);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        districtClause = `AND T.DistrictNameAr IN (${districtParams})`;
-      }
-
-      // PropertyType parameter (optional)
-      let propertyTypeClause = "";
-      if (filter.filter.propertyType) {
-        propertyTypeClause = `AND T.PropertyUse = @${paramIndex++}`;
-        parameters.push(filter.filter.propertyType);
-      }
-
-      let nationalityClause = "";
-      if (filter.filter.nationality && filter.filter.nationality.length > 0) {
-        const nationalityParams = filter.filter.nationality
-          .map((nationality) => {
-            parameters.push(nationality);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        nationalityClause = `AND T.RRR_Nationality IN (${nationalityParams})`;
-      }
+      // Build where clause and parameters
+      const { whereClause, parameters } = generateWhereClause(filter, durationCond.nextParamIndex);
+      parametersList.push(...durationCond.params, ...parameters);
 
       // Determine grouping level: district > city > region (priority order)
       let labelColumn: string;
@@ -235,11 +162,7 @@ export default fp(async (fastify) => {
           AND T.RRR_IdentityType NOT IN (N'NationalIdentity', N'Government Entity Number', N'Unified Number', N'Commercial Number')
           AND T.TitleStatus = 'Active'
           AND ${notNullClause}
-          ${regionClause}
-          ${cityClause}
-          ${districtClause}
-          ${propertyTypeClause}
-          ${nationalityClause}
+          ${whereClause}
         GROUP BY 
           ${durationGroupBy.join(", ")},
           ${groupByColumn}
@@ -248,7 +171,7 @@ export default fp(async (fastify) => {
           Count DESC
       `;
 
-      const query = AppDataSource.query(sql, parameters);
+      const query = AppDataSource.query(sql, parametersList);
       const data = await query;
       return { data: data as unknown as GetRealEstateCountResponse };
     } catch (error) {
@@ -263,68 +186,14 @@ export default fp(async (fastify) => {
       const durationSelect = helper?.select || [];
       const durationGroupBy = helper?.groupBy || [];
       const durationOrderBy = helper?.orderBy || [];
-
-      // Build parameters array and positional placeholders
-      const parameters: DurationParam[] = [];
+      let parametersList: DurationParam[] = [];
 
       // Generate duration WHERE clause using generateDurationCond
       const durationCond = generateDurationCond(filter.filter.duration, 0, "WeekOfYearNumber");
-      parameters.push(...durationCond.params);
-      let paramIndex = durationCond.nextParamIndex;
 
-      // Region parameters (optional, multi-select)
-      let regionClause = "";
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        const regionParams = filter.filter.region
-          .map((region) => {
-            parameters.push(region);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        regionClause = `AND T.RegionNameAr IN (${regionParams})`;
-      }
-
-      // City parameters (optional, multi-select)
-      let cityClause = "";
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        const cityParams = filter.filter.city
-          .map((city) => {
-            parameters.push(city);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        cityClause = `AND T.CityNameAr IN (${cityParams})`;
-      }
-
-      // District parameters (optional, multi-select)
-      let districtClause = "";
-      if (filter.filter.district && filter.filter.district.length > 0) {
-        const districtParams = filter.filter.district
-          .map((district) => {
-            parameters.push(district);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        districtClause = `AND T.DistrictNameAr IN (${districtParams})`;
-      }
-
-      // PropertyType parameter (optional)
-      let propertyTypeClause = "";
-      if (filter.filter.propertyType) {
-        propertyTypeClause = `AND T.PropertyUse = @${paramIndex++}`;
-        parameters.push(filter.filter.propertyType);
-      }
-
-      let nationalityClause = "";
-      if (filter.filter.nationality && filter.filter.nationality.length > 0) {
-        const nationalityParams = filter.filter.nationality
-          .map((nationality) => {
-            parameters.push(nationality);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        nationalityClause = `AND T.RRR_Nationality IN (${nationalityParams})`;
-      }
+      // Build where clause and parameters
+      const { whereClause, parameters } = generateWhereClause(filter, durationCond.nextParamIndex);
+      parametersList.push(...durationCond.params, ...parameters);
 
       // Determine grouping level: district > city > region (priority order)
       let labelColumn: string;
@@ -363,11 +232,7 @@ export default fp(async (fastify) => {
           AND T.RRR_IdentityType NOT IN (N'NationalIdentity', N'Government Entity Number', N'Unified Number', N'Commercial Number')
           AND T.TitleStatus = 'Active'
           AND ${notNullClause}
-          ${regionClause}
-          ${cityClause}
-          ${districtClause}
-          ${propertyTypeClause}
-          ${nationalityClause}
+          ${whereClause}
         GROUP BY 
           ${durationGroupBy.join(", ")},
           ${groupByColumn}
@@ -375,7 +240,7 @@ export default fp(async (fastify) => {
           ${durationOrderBy.join(", ")},
           Count DESC
       `;
-      const query = AppDataSource.query(sql, parameters);
+      const query = AppDataSource.query(sql, parametersList);
       const data = await query;
       return { data: data as unknown as GetRealEstateCountResponse };
     } catch (error) {
@@ -386,56 +251,12 @@ export default fp(async (fastify) => {
 
   const getTransactionsCountByTradeType = async (filter: TFilter) => {
     try {
-      // Build parameters array and positional placeholders
-      const parameters: DurationParam[] = [];
-
+      let parametersList: DurationParam[] = [];
       // Generate duration WHERE clause using generateDurationCond
       const durationCond = generateDurationCond(filter.filter.duration, 0, "WeekOfYearNumber");
-      parameters.push(...durationCond.params);
-      let paramIndex = durationCond.nextParamIndex;
-
-      // Region parameters (optional, multi-select)
-      let regionClause = "";
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        const regionParams = filter.filter.region
-          .map((region) => {
-            parameters.push(region);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        regionClause = `AND T.RegionNameAr IN (${regionParams})`;
-      }
-
-      // City parameters (optional, multi-select)
-      let cityClause = "";
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        const cityParams = filter.filter.city
-          .map((city) => {
-            parameters.push(city);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        cityClause = `AND T.CityNameAr IN (${cityParams})`;
-      }
-
-      // District parameters (optional, multi-select)
-      let districtClause = "";
-      if (filter.filter.district && filter.filter.district.length > 0) {
-        const districtParams = filter.filter.district
-          .map((district) => {
-            parameters.push(district);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        districtClause = `AND T.DistrictNameAr IN (${districtParams})`;
-      }
-
-      // PropertyType parameter (optional)
-      let propertyTypeClause = "";
-      if (filter.filter.propertyType) {
-        propertyTypeClause = `AND T.PropertyUse = @${paramIndex++}`;
-        parameters.push(filter.filter.propertyType);
-      }
+      // Build where clause and parameters
+      const { whereClause, parameters } = generateWhereClause(filter, durationCond.nextParamIndex);
+      parametersList.push(...durationCond.params, ...parameters);
 
       // Determine grouping level: district > city > region (priority order)
       let groupByColumn: string;
@@ -469,17 +290,14 @@ export default fp(async (fastify) => {
         AND T.requestname='Transfer of Ownership'
         AND T.TransferType IS NOT NULL
           AND ${notNullClause}
-          ${regionClause}
-          ${cityClause}
-          ${districtClause}
-          ${propertyTypeClause}
+          ${whereClause}
         GROUP BY 
           CASE WHEN TransferType='Gift' THEN N'هبة'
           WHEN TransferType='Sale' THEN N'بيع' WHEN TransferType='Inheritance' THEN N'ورث'
           WHEN TransferType='Compulsory Acquisition' THEN N'الاستحواذ الإلزامي' END
       `;
 
-      const query = AppDataSource.query(sql, parameters);
+      const query = AppDataSource.query(sql, parametersList);
       const data = await query;
       return { data: data as unknown as GetRealEstateCountResponse };
     } catch (error) {
@@ -490,61 +308,13 @@ export default fp(async (fastify) => {
 
   const getTransactionsCountByIdentityType = async (filter: TFilterWithExtra) => {
     try {
-      // Build parameters array and positional placeholders
-      const parameters: DurationParam[] = [];
-
+      // Build where clause and parameters
+      let parametersList: DurationParam[] = [];
       // Generate duration WHERE clause using generateDurationCond
       const durationCond = generateDurationCond(filter.filter.duration, 0, "WeekOfYearNumber");
-      parameters.push(...durationCond.params);
-      let paramIndex = durationCond.nextParamIndex;
-
-      // Region parameters (optional, multi-select)
-      let regionClause = "";
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        const regionParams = filter.filter.region
-          .map((region) => {
-            parameters.push(region);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        regionClause = `AND T.RegionNameAr IN (${regionParams})`;
-      }
-
-      // City parameters (optional, multi-select)
-      let cityClause = "";
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        const cityParams = filter.filter.city
-          .map((city) => {
-            parameters.push(city);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        cityClause = `AND T.CityNameAr IN (${cityParams})`;
-      }
-
-      // District parameters (optional, multi-select)
-      let districtClause = "";
-      if (filter.filter.district && filter.filter.district.length > 0) {
-        const districtParams = filter.filter.district
-          .map((district) => {
-            parameters.push(district);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        districtClause = `AND T.DistrictNameAr IN (${districtParams})`;
-      }
-
-      // Nationality parameter (optional)
-      let nationalityClause = "";
-      if (filter.filter.nationality && filter.filter.nationality.length > 0) {
-        const nationalityParams = filter.filter.nationality
-          .map((nationality) => {
-            parameters.push(nationality);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        nationalityClause = `AND T.RRR_Nationality IN (${nationalityParams})`;
-      }
+      const { whereClause, parameters } = generateWhereClause(filter, durationCond.nextParamIndex);
+      // Generate duration WHERE clause using generateDurationCond
+      parametersList.push(...durationCond.params, ...parameters);
 
       // Build the query with duration condition
       const sql = `
@@ -560,13 +330,10 @@ WHERE ${durationCond.clause}
 AND T.RegionNameAr IS NOT NULL AND T.CityNameAr IS NOT NULL AND T.DistrictNameAr IS NOT NULL 
 AND T.RRR_Nationality != '' and T.RRR_IdentityType not in (N'NationalIdentity', N'Government Entity Number', N'Unified Number', N'Commercial Number')
 AND T.TitleStatus = 'Active'
-${regionClause}
-${cityClause}
-${districtClause}
-${nationalityClause}
+${whereClause}
 group by T.RRR_IdentityType`;
 
-      const query = AppDataSource.query(sql, parameters);
+      const query = AppDataSource.query(sql, parametersList);
       const data = await query;
       return { data: data as unknown as GetTransactionsCountByIdentityTypeResponse };
     } catch (error) {
@@ -825,68 +592,13 @@ ORDER BY
       const durationGroupBy = helper?.groupBy || [];
       const durationOrderBy = helper?.orderBy || [];
 
-      // Build parameters array and positional placeholders
-      const parameters: DurationParam[] = [];
-
+      let parametersList: DurationParam[] = [];
       // Generate duration WHERE clause using generateDurationCond
       const durationCond = generateDurationCond(filter.filter.duration, 0, "WeekOfYearNumber");
-      parameters.push(...durationCond.params);
-      let paramIndex = durationCond.nextParamIndex;
 
-      // Region parameters (optional, multi-select)
-      let regionClause = "";
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        const regionParams = filter.filter.region
-          .map((region) => {
-            parameters.push(region);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        regionClause = `AND T.RegionNameAr IN (${regionParams})`;
-      }
-
-      // City parameters (optional, multi-select)
-      let cityClause = "";
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        const cityParams = filter.filter.city
-          .map((city) => {
-            parameters.push(city);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        cityClause = `AND T.CityNameAr IN (${cityParams})`;
-      }
-
-      // District parameters (optional, multi-select)
-      let districtClause = "";
-      if (filter.filter.district && filter.filter.district.length > 0) {
-        const districtParams = filter.filter.district
-          .map((district) => {
-            parameters.push(district);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        districtClause = `AND T.DistrictNameAr IN (${districtParams})`;
-      }
-
-      // PropertyType parameter (optional)
-      let propertyTypeClause = "";
-      if (filter.filter.propertyType) {
-        propertyTypeClause = `AND T.PropertyUse = @${paramIndex++}`;
-        parameters.push(filter.filter.propertyType);
-      }
-
-      // Nationality parameter (optional)
-      let nationalityClause = "";
-      if (filter.filter.nationality && filter.filter.nationality.length > 0) {
-        const nationalityParams = filter.filter.nationality
-          .map((nationality) => {
-            parameters.push(nationality);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        nationalityClause = `AND T.RRR_Nationality IN (${nationalityParams})`;
-      }
+      // Build where clause and parameters
+      const { whereClause, parameters } = generateWhereClause(filter, durationCond.nextParamIndex);
+      parametersList.push(...durationCond.params, ...parameters);
 
       // Determine grouping level: district > city > region (priority order)
       let labelColumn: string;
@@ -925,11 +637,7 @@ ORDER BY
           AND T.RRR_IdentityType NOT IN (N'NationalIdentity', N'Government Entity Number', N'Unified Number', N'Commercial Number')
           AND T.TransferType='Sale'
           AND ${notNullClause}
-          ${regionClause}
-          ${cityClause}
-          ${districtClause}
-          ${propertyTypeClause}
-          ${nationalityClause}
+          ${whereClause}
         GROUP BY 
           ${durationGroupBy.join(", ")},
           ${groupByColumn}
@@ -937,13 +645,70 @@ ORDER BY
           ${durationOrderBy.join(", ")},
           Count DESC
       `;
-      const query = AppDataSource.query(sql, parameters);
+      const query = AppDataSource.query(sql, parametersList);
       const data = await query;
       return { data: data as unknown as GetTransactionsCountResponse };
     } catch (error) {
       console.error("⚠️  Error getting transactions count:", error);
       return { data: [] as unknown as GetTransactionsCountResponse };
     }
+  };
+
+  const generateWhereClause = (
+    filter: TFilterWithNationality | TFilter | TFilterWithExtra | TTitlesByRegionFilter,
+    parametersIndex: number = 0,
+  ) => {
+    let whereClause = "";
+    const parameters: DurationParam[] = [];
+    if ("region" in filter.filter && filter.filter.region && filter.filter.region.length > 0) {
+      const regionParams = filter.filter.region
+        .map((region) => {
+          parameters.push(region);
+          return `@${parametersIndex++}`;
+        })
+        .join(", ");
+      whereClause += `AND T.RegionNameAr IN (${regionParams})`;
+    }
+    if ("city" in filter.filter && filter.filter.city && filter.filter.city.length > 0) {
+      const cityParams = filter.filter.city
+        .map((city) => {
+          parameters.push(city);
+          return `@${parametersIndex++}`;
+        })
+        .join(", ");
+      whereClause += `AND T.CityNameAr IN (${cityParams})`;
+    }
+    if (
+      "district" in filter.filter &&
+      filter.filter.district &&
+      filter.filter.district.length > 0
+    ) {
+      const districtParams = filter.filter.district
+        .map((district) => {
+          parameters.push(district);
+          return `@${parametersIndex++}`;
+        })
+        .join(", ");
+      whereClause += `AND T.DistrictNameAr IN (${districtParams})`;
+    }
+    if (
+      "nationality" in filter.filter &&
+      filter.filter.nationality &&
+      filter.filter.nationality.length > 0
+    ) {
+      const nationalityParams = filter.filter.nationality
+        .map((nationality) => {
+          parameters.push(nationality);
+          return `@${parametersIndex++}`;
+        })
+        .join(", ");
+      whereClause += `AND T.RRR_Nationality IN (${nationalityParams})`;
+    }
+    if ("propertyType" in filter.filter && filter.filter.propertyType) {
+      parameters.push(filter.filter.propertyType);
+      whereClause += `AND T.PropertyUse = @${parametersIndex++}`;
+    }
+    return { whereClause, parameters, parametersIndex };
   };
 
   // Decorate the fastify instance with the generalService

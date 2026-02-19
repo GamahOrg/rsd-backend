@@ -141,6 +141,21 @@ VALUES (
 );
 GO
 
+-- 17. foreign-ownership (HIDDEN)
+INSERT INTO permission (id, type, name, description, labelAr, displayOrder, autoEnable, paths, hidden)
+VALUES (
+    NEWID(),
+    'page',
+    'foreign-ownership',
+    'Foreign Ownership',
+    N'تملك الأجانب',
+    17,
+    0,
+    '["/foreign-ownership", "/foreign-ownership/deals", "/foreign-ownership/owners", "/foreign-ownership/owners/details"]',
+    0
+);
+GO
+
 -- Now insert children of advanced-search
 -- 6. live-deals (child of advanced-search)
 INSERT INTO permission (id, type, name, description, labelAr, displayOrder, autoEnable, paths, hidden, parentPermissionId)

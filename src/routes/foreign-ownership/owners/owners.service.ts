@@ -11,7 +11,6 @@ import {
   TFilter as GetOwnersStatisticsFilterType,
 } from "./schemas/GetOwnersStatistics.schema";
 import { AppDataSource } from "../../../config/database";
-import { DurationParam } from "../../../helper/rer/filterQueryGenerator";
 
 export default fp(async (fastify) => {
   const queryHelper = {
@@ -42,69 +41,13 @@ export default fp(async (fastify) => {
     pagination?: { skip: number; take: number },
   ) => {
     try {
-      // Build parameters array and positional placeholders
-      const parameters: DurationParam[] = [];
-      let paramIndex = 0;
+      // Build where clause and parameters
+      const { whereClause, parameters } = generateWhereClause(filter);
+      // Build order by clause
+      const orderByClause = generateOrderByClause(filter);
 
-      // Region parameters (optional, multi-select)
-      let regionClause = "";
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        const regionParams = filter.filter.region
-          .map((region) => {
-            parameters.push(region);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        regionClause = `AND rt.RegionNameAr IN (${regionParams})`;
-      }
-
-      // City parameters (optional, multi-select)
-      let cityClause = "";
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        const cityParams = filter.filter.city
-          .map((city) => {
-            parameters.push(city);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        cityClause = `AND rt.CityNameAr IN (${cityParams})`;
-      }
-
-      // Nationality parameters (optional, multi-select)
-      let nationalityClause = "";
-      if (filter.filter.nationality && filter.filter.nationality.length > 0) {
-        const nationalityParams = filter.filter.nationality
-          .map((nationality) => {
-            parameters.push(nationality);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        nationalityClause = `AND rt.RRR_Nationality IN (${nationalityParams})`;
-      }
-
-      let identityTypeClause = "";
-      if (filter.filter.identityType && filter.filter.identityType.length > 0) {
-        const identityTypeParams = filter.filter.identityType
-          .map((identityType) => {
-            parameters.push(identityType);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        identityTypeClause = `AND rt.RRR_IdentityType IN (${identityTypeParams})`;
-      }
-
-      // Order by parameters (optional)
-      let orderByClause = "";
-      if (filter.filter.orderBy) {
-        orderByClause = `ORDER BY ${filter.filter.orderBy.column} ${filter.filter.orderBy.direction}`;
-      } else {
-        orderByClause = "ORDER BY rt.RRR_GovIdentityValue";
-      }
-
-      const take = Math.max(1, pagination?.take ?? filter.filter.dataSize ?? 100);
-      const skip = Math.max(0, pagination?.skip ?? 0);
-      const offsetParam = paramIndex++;
-      const takeParam = paramIndex++;
+      const offsetParam = Math.max(0, pagination?.skip ?? 0);
+      const takeParam = Math.max(1, pagination?.take ?? filter.filter.dataSize ?? 100);
       const dataSql = `
        SELECT
         rt.RRR_GovIdentityValue AS OwnerIDNumber,
@@ -122,17 +65,14 @@ export default fp(async (fastify) => {
             N'Commercial Number'
       )
       AND NULLIF(LTRIM(RTRIM(rt.RRR_GovIdentityValue)), N'') IS NOT NULL
-      ${regionClause}
-      ${cityClause}
-      ${nationalityClause}
-      ${identityTypeClause}
+      ${whereClause}
     GROUP BY
         rt.RRR_GovIdentityValue,
         rt.RRR_IdentityType,
         rt.RRR_NameAr,
         rt.RRR_Nationality
     ${orderByClause}
-    OFFSET @${offsetParam} ROWS FETCH NEXT @${takeParam} ROWS ONLY;`;
+    OFFSET ${offsetParam} ROWS FETCH NEXT ${takeParam} ROWS ONLY;`;
 
       // Get total record count using a proper COUNT(*) query
       const countSql = `
@@ -146,14 +86,11 @@ export default fp(async (fastify) => {
                 N'Commercial Number'
           )
           AND NULLIF(LTRIM(RTRIM(rt.RRR_GovIdentityValue)), N'') IS NOT NULL
-          ${regionClause}
-          ${cityClause}
-          ${nationalityClause}
-          ${identityTypeClause}
+          ${whereClause}
       `;
       const totalRecordsResult = await AppDataSource.query(countSql, parameters);
       const totalRecords = Number(totalRecordsResult?.[0]?.totalRecords ?? 0);
-      let data = await AppDataSource.query(dataSql, [...parameters, skip, take]);
+      let data = await AppDataSource.query(dataSql, [...parameters, offsetParam, takeParam]);
       data = data.map((item: any) => {
         return {
           OwnerIDNumber: item.OwnerIDNumber,
@@ -187,55 +124,7 @@ export default fp(async (fastify) => {
   const getOwnersStatistics = async (filter: GetOwnersStatisticsFilterType) => {
     try {
       // Build parameters array and positional placeholders
-      const parameters: DurationParam[] = [];
-      let paramIndex = 0;
-
-      // Region parameters (optional, multi-select)
-      let regionClause = "";
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        const regionParams = filter.filter.region
-          .map((region) => {
-            parameters.push(region);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        regionClause = `AND rt.RegionNameAr IN (${regionParams})`;
-      }
-
-      // City parameters (optional, multi-select)
-      let cityClause = "";
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        const cityParams = filter.filter.city
-          .map((city) => {
-            parameters.push(city);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        cityClause = `AND rt.CityNameAr IN (${cityParams})`;
-      }
-
-      // Nationality parameters (optional, multi-select)
-      let nationalityClause = "";
-      if (filter.filter.nationality && filter.filter.nationality.length > 0) {
-        const nationalityParams = filter.filter.nationality
-          .map((nationality) => {
-            parameters.push(nationality);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        nationalityClause = `AND rt.RRR_Nationality IN (${nationalityParams})`;
-      }
-
-      let identityTypeClause = "";
-      if (filter.filter.identityType && filter.filter.identityType.length > 0) {
-        const identityTypeParams = filter.filter.identityType
-          .map((identityType) => {
-            parameters.push(identityType);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        identityTypeClause = `AND rt.RRR_IdentityType IN (${identityTypeParams})`;
-      }
+      const { whereClause, parameters } = generateWhereClause(filter);
 
       const sql = `
 SELECT 
@@ -251,10 +140,7 @@ count(distinct rt.RRR_GovIdentityValue) as totalOwners,
             N'Commercial Number'
       )
       AND NULLIF(LTRIM(RTRIM(rt.RRR_GovIdentityValue)), N'') IS NOT NULL
-      ${regionClause}
-      ${cityClause}
-      ${nationalityClause}
-      ${identityTypeClause}
+      ${whereClause}
       `;
       const data = await AppDataSource.query(sql, parameters);
       return { data: data[0] as unknown as GetOwnersStatisticsResponse };
@@ -458,6 +344,56 @@ count(distinct rt.RRR_GovIdentityValue) as totalOwners,
         },
       };
     }
+  };
+
+  const generateWhereClause = (filter: GetOwnersFilterType | GetOwnersStatisticsFilterType) => {
+    let whereClause = "";
+    const parameters: string[] = [];
+    let paramIndex = 0;
+    if (filter.filter.region && filter.filter.region.length > 0) {
+      const regionParams = filter.filter.region
+        .map((region) => {
+          parameters.push(region);
+          return `@${paramIndex++}`;
+        })
+        .join(", ");
+      whereClause += `AND rt.RegionNameAr IN (${regionParams})`;
+    }
+    if (filter.filter.city && filter.filter.city.length > 0) {
+      const cityParams = filter.filter.city
+        .map((city) => {
+          parameters.push(city);
+          return `@${paramIndex++}`;
+        })
+        .join(", ");
+      whereClause += `AND rt.CityNameAr IN (${cityParams})`;
+    }
+    if (filter.filter.nationality && filter.filter.nationality.length > 0) {
+      const nationalityParams = filter.filter.nationality
+        .map((nationality) => {
+          parameters.push(nationality);
+          return `@${paramIndex++}`;
+        })
+        .join(", ");
+      whereClause += `AND rt.RRR_Nationality IN (${nationalityParams})`;
+    }
+    if (filter.filter.identityType && filter.filter.identityType.length > 0) {
+      const identityTypeParams = filter.filter.identityType
+        .map((identityType) => {
+          parameters.push(identityType);
+          return `@${paramIndex++}`;
+        })
+        .join(", ");
+      whereClause += `AND rt.RRR_IdentityType IN (${identityTypeParams})`;
+    }
+    return { whereClause, parameters };
+  };
+
+  const generateOrderByClause = (filter: GetOwnersFilterType) => {
+    if (filter.filter.orderBy) {
+      return `ORDER BY ${filter.filter.orderBy.column} ${filter.filter.orderBy.direction}`;
+    }
+    return "ORDER BY rt.RRR_GovIdentityValue";
   };
   // Decorate the fastify instance with the generalService
   fastify.decorate("foreignOwnershipOwnersService", {
