@@ -359,7 +359,7 @@ WHERE rt.TitleStatus = 'Active'
         "T.RRR_IdentityType NOT IN (N'NationalIdentity', N'Government Entity Number', N'Unified Number', N'Commercial Number')",
       )
       .groupBy("T.RRR_Nationality")
-      .orderBy("COUNT(*)", "DESC");
+      .orderBy("T.RRR_Nationality", "DESC");
     let data = await nationalitiesRepo.getRawMany();
     try {
       await fastify.redis.setex(
