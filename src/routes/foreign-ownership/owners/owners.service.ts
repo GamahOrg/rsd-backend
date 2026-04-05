@@ -278,7 +278,10 @@ count(distinct rt.RRR_GovIdentityValue) as totalOwners,
     }
   };
 
-  const getOwnerRealestates = async (ownerIDNumber: string) => {
+  const getOwnerRealestates = async (
+    ownerIDNumber: string,
+    beforeExecutionDate: boolean | undefined,
+  ) => {
     try {
       const query = `SELECT
         rt.RealEstate_Number as id,
@@ -304,9 +307,8 @@ count(distinct rt.RRR_GovIdentityValue) as totalOwners,
         Northing,
         UtmZone
       FROM RER_Titles rt
-      WHERE RRR_GovIdentityValue = @0 AND TitleStatus = 'Active'`;
+      WHERE RRR_GovIdentityValue = @0 AND TitleStatus = 'Active' ${beforeExecutionDate ? (beforeExecutionDate === true ? `AND rt.DeedDate < '2026-01-22'` : " AND rt.DeedDate >= '2026-01-22' ") : ""}`;
       const data = await AppDataSource.query(query, [ownerIDNumber]);
-      console.log(data);
       return { data: data as unknown as GetOwnerRealestatesResponse };
     } catch (error) {
       console.error("⚠️  Error getting owner realestates data:", error);
@@ -415,6 +417,7 @@ declare module "fastify" {
       getOwnerInfo: (ownerIDNumber: string) => Promise<{ data: GetOwnerInfoResponse }>;
       getOwnerRealestates: (
         ownerIDNumber: string,
+        beforeExecutionDate: boolean | undefined,
       ) => Promise<{ data: GetOwnerRealestatesResponse }>;
       getOwnerRealestatesCoordinates: (
         ownerIDNumber: string,

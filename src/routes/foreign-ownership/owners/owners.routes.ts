@@ -10,6 +10,7 @@ import {
   getOwnerRealestatesSchema,
   getOwnerRealestatesSchemaType,
   TParams as GetOwnerRealestatesParamsType,
+  TQuerystring as GetOwnerRealestatesQueryType,
 } from "./schemas/GetOwnerRealestates.schema";
 import {
   getOwnerRealestatesCoordinatesSchema,
@@ -70,8 +71,11 @@ const foreignOwnershipOwners: FastifyPluginAsyncTypebox = async (fastify): Promi
     schema: getOwnerRealestatesSchema,
     handler: async (request) => {
       const { ownerIDNumber } = request.params as GetOwnerRealestatesParamsType;
-      const { data } =
-        await fastify.foreignOwnershipOwnersService.getOwnerRealestates(ownerIDNumber);
+      const { beforeExecutionDate } = request.query as GetOwnerRealestatesQueryType;
+      const { data } = await fastify.foreignOwnershipOwnersService.getOwnerRealestates(
+        ownerIDNumber,
+        beforeExecutionDate,
+      );
       return data;
     },
   });
