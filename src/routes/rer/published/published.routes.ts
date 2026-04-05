@@ -14,6 +14,15 @@ import {
   getRegisteredToPublishedParcelsRatioSchema,
   getRegisteredToPublishedParcelsRatioSchemaType,
 } from "./schemas/GetRegisteredToPublishedParcelsRatio.schema";
+import {
+  getMapGeneralStatisticsSchema,
+  getMapGeneralStatisticsSchemaType,
+  TFilter as GetMapGeneralStatisticsFilterType,
+} from "./schemas/GetMapGeneralStatistics.schema";
+import {
+  getMapStatisticsByRegionsSchema,
+  getMapStatisticsByRegionsSchemaType,
+} from "./schemas/GetMapStatisticsByRegions.schema";
 
 const rerPublished: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   // api to published real estate count
@@ -24,6 +33,29 @@ const rerPublished: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
     handler: async (request) => {
       const { filter } = request.body as TFilter;
       const { data } = await fastify.rerPublishedService.getPublishedRealEstateCount({ filter });
+      return data;
+    },
+  });
+
+  // api to get all regions
+  fastify.route<getMapStatisticsByRegionsSchemaType>({
+    method: "GET",
+    url: "/regions/maps/statistics",
+    schema: getMapStatisticsByRegionsSchema,
+    handler: async () => {
+      const { data } = await fastify.rerPublishedService.getMapStatisticsByRegions();
+      return data;
+    },
+  });
+
+  // TOBEREVIEWED: this api is not used in the app yet
+  fastify.route<getMapGeneralStatisticsSchemaType>({
+    method: "POST",
+    url: "/map/general-statistics",
+    schema: getMapGeneralStatisticsSchema,
+    handler: async (request) => {
+      const { filter } = request.body as GetMapGeneralStatisticsFilterType;
+      const { data } = await fastify.rerPublishedService.getMapGeneralStatistics({ filter });
       return data;
     },
   });

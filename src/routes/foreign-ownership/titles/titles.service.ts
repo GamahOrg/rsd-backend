@@ -350,7 +350,7 @@ TOP 10
     m.name,
     COUNT(DISTINCT rt.RRR_GovIdentityValue) AS total,
     COUNT(DISTINCT rt.RealEstate_Number) AS totalProperties
-FROM [RSD_DEV].[dbo].RER_Titles rt
+FROM dbo.RER_Titles rt
 CROSS APPLY (
     SELECT NULLIF(LTRIM(RTRIM(rt.RRR_Nationality)), N'') AS nat
 ) n

@@ -23,7 +23,7 @@ export default fp(async (fastify) => {
           SUM(CASE WHEN rt.RRR_IdentityType = 'Premium Iqama' THEN 1 ELSE 0 END) AS total_owners_p_iqama,
           SUM(CASE WHEN rt.RRR_IdentityType = 'GCCIdentity' THEN 1 ELSE 0 END) AS total_owners_gcc_id,
           SUM(CASE WHEN rt.RRR_IdentityType = 'GCCPassport' THEN 1 ELSE 0 END) AS total_owners_gcc_passport
-        FROM [RSD_DEV].[dbo].RER_Titles rt
+        FROM dbo.RER_Titles rt
         WHERE rt.RRR_Nationality != ''
           AND rt.RRR_IdentityType NOT IN (N'NationalIdentity', N'Government Entity Number', N'Unified Number', N'Commercial Number')
           AND rt.TitleStatus = 'Active'`,
@@ -31,7 +31,7 @@ export default fp(async (fastify) => {
       AppDataSource.query(
         `SELECT rt.PropertyUse AS name,
           COUNT(DISTINCT RealEstate_Number) AS total
-        FROM [RSD_DEV].[dbo].RER_Titles rt
+        FROM dbo.RER_Titles rt
         WHERE rt.RRR_Nationality != ''
           AND rt.RRR_IdentityType NOT IN (N'NationalIdentity', N'Government Entity Number', N'Unified Number', N'Commercial Number')
           AND rt.TitleStatus = 'Active'
@@ -41,7 +41,7 @@ export default fp(async (fastify) => {
       AppDataSource.query(
         `SELECT rt.CityNameAr AS name,
           COUNT(DISTINCT RealEstate_Number) AS total
-        FROM [RSD_DEV].[dbo].RER_Titles rt
+        FROM dbo.RER_Titles rt
         WHERE rt.RRR_Nationality != ''
           AND rt.RRR_IdentityType NOT IN (N'NationalIdentity', N'Government Entity Number', N'Unified Number', N'Commercial Number')
           AND rt.TitleStatus = 'Active'
@@ -53,7 +53,7 @@ export default fp(async (fastify) => {
           TOP (1)
           m.name,
           COUNT(DISTINCT rt.RealEstate_Number) AS total
-        FROM [RSD_DEV].[dbo].RER_Titles rt
+        FROM dbo.RER_Titles rt
         CROSS APPLY (
           SELECT NULLIF(LTRIM(RTRIM(rt.RRR_Nationality)), N'') AS nat
         ) n
@@ -180,10 +180,10 @@ export default fp(async (fastify) => {
     CAST(COUNT(DISTINCT rt.RealEstate_Number) AS decimal(10,4))
     / (
         SELECT COUNT(DISTINCT RealEstate_Number)
-        FROM [RSD_DEV].[dbo].RER_Titles
+        FROM dbo.RER_Titles
         WHERE TitleStatus = 'Active'
       ) * 100 AS percentage
-FROM [RSD_DEV].[dbo].RER_Titles rt
+FROM dbo.RER_Titles rt
 WHERE rt.TitleStatus = 'Active'
   AND rt.RRR_IdentityType NOT IN (
         N'NationalIdentity',

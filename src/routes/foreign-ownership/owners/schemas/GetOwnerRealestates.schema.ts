@@ -5,11 +5,17 @@ import { RouteGenericInterface } from "fastify";
 const IParams = Type.Object({
   ownerIDNumber: Type.String(),
 });
+
+const IQuerystring = Type.Object({
+  beforeExecutionDate: Type.Optional(Type.Boolean()),
+});
 export type TParams = Static<typeof IParams>;
+export type TQuerystring = Static<typeof IQuerystring>;
 
 const IResponse = Type.Array(
   Type.Object({
     id: Type.String(),
+    DEED_DATE_G: Type.String(),
     OWNED_AREA: Type.Number(),
     TOTAL_AREA_SIZE: Type.Number(),
     OWNED_PERCENTAGE: Type.Number(),
@@ -28,6 +34,7 @@ export type TResponse = Static<typeof IResponse>;
 
 export type getOwnerRealestatesSchemaType = RouteGenericInterface & {
   Params: TParams;
+  Querystring: TQuerystring;
   Response: TResponse;
   Error: TError;
 };
@@ -38,6 +45,7 @@ export const getOwnerRealestatesSchema = {
   summary: "get owner realestates data",
   description: "get owner realestates data",
   params: IParams,
+  querystring: IQuerystring,
   response: {
     200: IResponse,
     400: IError,
