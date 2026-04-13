@@ -18,7 +18,7 @@ variables:
   FILE_PATH: apps/idm-rsd/backend/environments/${ENVIRONMENT}/deployment.yaml
   TAG: "$IMAGE_TAG_NAME"
   TAG_PATH: .spec.template.spec.containers[0].image
-  USE_DOCKER_DIND: true
+  USE_DOCKER_DIND: false
 
 prettier-fix:
   stage: lint-and-test
