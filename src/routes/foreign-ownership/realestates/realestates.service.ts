@@ -4,6 +4,7 @@ import {
   TResponse as GetRealestatesCoordinatesResponseType,
 } from "./schemas/GetRealestatesCoordinates.schema";
 import { AppDataSource } from "../../../config/database";
+import { withCache } from "../../../helper/cache";
 
 export default fp(async (fastify) => {
   //   const getOwnersStatistics = async (filter: GetOwnersStatisticsFilterType) => {
@@ -36,9 +37,17 @@ export default fp(async (fastify) => {
   //   };
 
   const getRealestatesCoordinates = async (filter: GetRealestatesCoordinatesFilterType) => {
-    try {
-      const { whereClause, parameters } = generateWhereClause(filter);
-      const query = `SELECT DISTINCT
+    return withCache(
+      fastify.redis,
+      `fo_realestates:coordinates:${JSON.stringify(filter)}`,
+      7200,
+      () => _getRealestatesCoordinates(filter),
+    );
+  };
+
+  const _getRealestatesCoordinates = async (filter: GetRealestatesCoordinatesFilterType) => {
+    const { whereClause, parameters } = generateWhereClause(filter);
+    const query = `SELECT DISTINCT
         Easting,
         Northing,
         UtmZone
@@ -53,28 +62,18 @@ export default fp(async (fastify) => {
       AND NULLIF(LTRIM(RTRIM(rt.RRR_GovIdentityValue)), N'') IS NOT NULL
       ${whereClause}
       `;
-      const data = await AppDataSource.query(query, parameters);
-      const response: GetRealestatesCoordinatesResponseType = {
-        Easting: [],
-        Northing: [],
-        UtmZone: [],
-      };
-      for (const row of data) {
-        if (row.Easting != null) response.Easting.push(String(row.Easting));
-        if (row.Northing != null) response.Northing.push(String(row.Northing));
-        if (row.UtmZone != null) response.UtmZone.push(String(row.UtmZone));
-      }
-      return { data: response };
-    } catch (error) {
-      console.error("⚠️  Error getting owner realestates data:", error);
-      return {
-        data: {
-          Easting: [],
-          Northing: [],
-          UtmZone: [],
-        },
-      };
+    const data = await AppDataSource.query(query, parameters);
+    const response: GetRealestatesCoordinatesResponseType = {
+      Easting: [],
+      Northing: [],
+      UtmZone: [],
+    };
+    for (const row of data) {
+      if (row.Easting != null) response.Easting.push(String(row.Easting));
+      if (row.Northing != null) response.Northing.push(String(row.Northing));
+      if (row.UtmZone != null) response.UtmZone.push(String(row.UtmZone));
     }
+    return { data: response };
   };
 
   const generateWhereClause = (filter: GetRealestatesCoordinatesFilterType) => {

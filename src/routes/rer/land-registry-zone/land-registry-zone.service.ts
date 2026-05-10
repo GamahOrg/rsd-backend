@@ -26,7 +26,7 @@ export default fp(async (fastify) => {
     const data = await query.getRawMany();
 
     try {
-      await fastify.redis.setex("rer_land_registry_zone_shapes:list", 86400, JSON.stringify(data));
+      await fastify.redis.setex("rer_land_registry_zone_shapes:list", 7200, JSON.stringify(data));
     } catch (error) {
       console.error("⚠️  Redis cache storage failed:", error);
     }
@@ -49,7 +49,7 @@ export default fp(async (fastify) => {
       .orderBy("lz.region_ar", "ASC");
     const data = await query.getRawMany();
     try {
-      await fastify.redis.setex("rer_land_registry_zone_regions:list", 86400, JSON.stringify(data));
+      await fastify.redis.setex("rer_land_registry_zone_regions:list", 7200, JSON.stringify(data));
     } catch (error) {
       console.error("⚠️  Redis cache storage failed:", error);
     }
@@ -74,7 +74,7 @@ export default fp(async (fastify) => {
     try {
       await fastify.redis.setex(
         `rer_land_registry_zone_cities:list:${region ?? ""}`,
-        86400,
+        7200,
         JSON.stringify(data),
       );
     } catch (error) {

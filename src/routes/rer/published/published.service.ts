@@ -12,6 +12,7 @@ import {
   TFilter as GetMapGeneralStatisticsFilterType,
 } from "./schemas/GetMapGeneralStatistics.schema";
 import { TResponse as GetMapStatisticsByRegionsResponse } from "./schemas/GetMapStatisticsByRegions.schema";
+import { withCache } from "../../../helper/cache";
 export default fp(async (fastify) => {
   const queryHelper = {
     WEEK: {
@@ -37,400 +38,403 @@ export default fp(async (fastify) => {
   };
 
   const getPublishedRealEstateCount = async (filter: TFilter) => {
-    try {
-      const helper = queryHelper[filter.filter.duration.type as keyof typeof queryHelper];
-      const durationSelect = helper?.select || [];
-      const durationGroupBy = helper?.groupBy || [];
-      const durationOrderBy = helper?.orderBy || [];
+    return withCache(fastify.redis, `rer_published:count:${JSON.stringify(filter)}`, 7200, () =>
+      _getPublishedRealEstateCount(filter),
+    );
+  };
 
-      // Build parameters array and positional placeholders
-      const parameters: DurationParam[] = [];
+  const _getPublishedRealEstateCount = async (filter: TFilter) => {
+    const helper = queryHelper[filter.filter.duration.type as keyof typeof queryHelper];
+    const durationSelect = helper?.select || [];
+    const durationGroupBy = helper?.groupBy || [];
+    const durationOrderBy = helper?.orderBy || [];
 
-      // Generate duration WHERE clause using generateDurationCond
-      const durationCond = generateDurationCond(filter.filter.duration, 0, "WeekOfYearNumber");
-      parameters.push(...durationCond.params);
-      let paramIndex = durationCond.nextParamIndex;
+    const parameters: DurationParam[] = [];
+    const durationCond = generateDurationCond(filter.filter.duration, 0, "WeekOfYearNumber");
+    parameters.push(...durationCond.params);
+    let paramIndex = durationCond.nextParamIndex;
 
-      // Region parameters (optional, multi-select)
-      let regionClause = "";
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        const regionParams = filter.filter.region
-          .map((region) => {
-            parameters.push(region);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        regionClause = `AND RP.regionar IN (${regionParams})`;
-      }
-
-      // City parameters (optional, multi-select)
-      let cityClause = "";
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        const cityParams = filter.filter.city
-          .map((city) => {
-            parameters.push(city);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        cityClause = `AND RP.citynamear IN (${cityParams})`;
-      }
-
-      // Determine grouping level: city > region (priority order)
-      let labelColumn: string;
-      let groupByColumn: string;
-      let selectColumn: string;
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        labelColumn = "RP.citynamear";
-        groupByColumn = "RP.regionar, RP.citynamear";
-        selectColumn = "RP.regionar AS Region, RP.citynamear as City";
-      } else {
-        labelColumn = "RP.regionar";
-        groupByColumn = "RP.regionar";
-        selectColumn = "RP.regionar AS Region";
-      }
-
-      // Build the query with duration condition
-      const sql = `
-        SELECT 
-          ${durationSelect.join(", ")},
-          ${labelColumn} AS Label,
-          sum(no_of_realestates) as Count,
-          ${selectColumn}
-        FROM "RER_Published" AS RP
-        WHERE ${durationCond.clause}
-        ${regionClause}
-        ${cityClause}
-        GROUP BY 
-          ${durationGroupBy.join(", ")},
-          ${groupByColumn}
-        ORDER BY
-          ${durationOrderBy.join(", ")}
-      `;
-
-      const query = AppDataSource.query(sql, parameters);
-      const data = await query;
-      return { data: data as unknown as GetPublishedRealEstateCountResponse };
-    } catch (error) {
-      console.error("⚠️  Error getting published real estate count:", error);
-      return { data: [] as unknown as GetPublishedRealEstateCountResponse };
+    let regionClause = "";
+    if (filter.filter.region && filter.filter.region.length > 0) {
+      const regionParams = filter.filter.region
+        .map((region) => {
+          parameters.push(region);
+          return `@${paramIndex++}`;
+        })
+        .join(", ");
+      regionClause = `AND RP.regionar IN (${regionParams})`;
     }
+
+    let cityClause = "";
+    if (filter.filter.city && filter.filter.city.length > 0) {
+      const cityParams = filter.filter.city
+        .map((city) => {
+          parameters.push(city);
+          return `@${paramIndex++}`;
+        })
+        .join(", ");
+      cityClause = `AND RP.citynamear IN (${cityParams})`;
+    }
+
+    let labelColumn: string;
+    let groupByColumn: string;
+    let selectColumn: string;
+    if (filter.filter.city && filter.filter.city.length > 0) {
+      labelColumn = "RP.citynamear";
+      groupByColumn = "RP.regionar, RP.citynamear";
+      selectColumn = "RP.regionar AS Region, RP.citynamear as City";
+    } else {
+      labelColumn = "RP.regionar";
+      groupByColumn = "RP.regionar";
+      selectColumn = "RP.regionar AS Region";
+    }
+
+    const sql = `
+      SELECT 
+        ${durationSelect.join(", ")},
+        ${labelColumn} AS Label,
+        sum(no_of_realestates) as Count,
+        ${selectColumn}
+      FROM "RER_Published" AS RP
+      WHERE ${durationCond.clause}
+      ${regionClause}
+      ${cityClause}
+      GROUP BY 
+        ${durationGroupBy.join(", ")},
+        ${groupByColumn}
+      ORDER BY
+        ${durationOrderBy.join(", ")}
+    `;
+
+    const data = await AppDataSource.query(sql, parameters);
+    return { data: data as unknown as GetPublishedRealEstateCountResponse };
   };
 
   const getPublishedRealEstateRatio = async (filter: TFilter) => {
-    try {
-      // Build parameters array and positional placeholders
-      const parameters: DurationParam[] = [];
-      let paramIndex = 0;
+    return withCache(fastify.redis, `rer_published:ratio:${JSON.stringify(filter)}`, 7200, () =>
+      _getPublishedRealEstateRatio(filter),
+    );
+  };
 
-      // Region parameters (optional, multi-select)
-      let regionClause = "";
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        const regionParams = filter.filter.region
-          .map((region) => {
-            parameters.push(region);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        regionClause = `AND a.regionar IN (${regionParams})`;
-      }
+  const _getPublishedRealEstateRatio = async (filter: TFilter) => {
+    const parameters: DurationParam[] = [];
+    let paramIndex = 0;
 
-      // City parameters (optional, multi-select)
-      let cityClause = "";
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        const cityParams = filter.filter.city
-          .map((city) => {
-            parameters.push(city);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        cityClause = `AND a.citynamear IN (${cityParams})`;
-      }
-
-      // Determine grouping level: city > region (priority order)
-      let labelColumn: string;
-      let groupByColumn: string;
-      let selectColumn: string;
-      let notNullClause: string;
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        labelColumn = "a.citynamear";
-        groupByColumn = "a.regionar, a.citynamear";
-        selectColumn = "a.regionar AS Region, a.citynamear as City";
-        notNullClause = "a.regionar IS NOT NULL AND a.citynamear IS NOT NULL";
-      } else {
-        labelColumn = "a.regionar";
-        groupByColumn = "a.regionar";
-        selectColumn = "a.regionar AS Region";
-        notNullClause = "a.regionar IS NOT NULL";
-      }
-
-      // Build the query with duration condition
-      const sql = `
-       select 
-       ${labelColumn} as Label,
-       max(b.sdi) as total_no_of_realestates, 
-       sum([no_of_realestates]) as no_of_announced_realestates,
-                CASE
-            WHEN MAX(b.sdi) = 0 THEN 0
-            ELSE ROUND(sum([no_of_realestates]) * 100.0 / MAX(b.sdi), 2)
-          END AS Ratio,
-        ${selectColumn}
-  FROM [dbo].[RER_Published] a
-  left join  [dbo].[RER_SDI] b
-  ON a.regionar LIKE '%' + LTRIM(RTRIM(REPLACE(b.region, CHAR(160), ' '))) + '%'
-   WHERE ${notNullClause}
-        ${regionClause}
-        ${cityClause}
-  group by  ${groupByColumn}
-          ORDER BY
-          ${labelColumn}
-`;
-      const data = await AppDataSource.query(sql, parameters);
-      return { data: data as unknown as GetPublishedRealEstateRatioResponse };
-    } catch (error) {
-      console.error("⚠️  Error getting published real estate ratio:", error);
-      return { data: [] as unknown as GetPublishedRealEstateRatioResponse };
+    let regionClause = "";
+    if (filter.filter.region && filter.filter.region.length > 0) {
+      const regionParams = filter.filter.region
+        .map((region) => {
+          parameters.push(region);
+          return `@${paramIndex++}`;
+        })
+        .join(", ");
+      regionClause = `AND a.regionar IN (${regionParams})`;
     }
+
+    let cityClause = "";
+    if (filter.filter.city && filter.filter.city.length > 0) {
+      const cityParams = filter.filter.city
+        .map((city) => {
+          parameters.push(city);
+          return `@${paramIndex++}`;
+        })
+        .join(", ");
+      cityClause = `AND a.citynamear IN (${cityParams})`;
+    }
+
+    let labelColumn: string;
+    let groupByColumn: string;
+    let selectColumn: string;
+    let notNullClause: string;
+    if (filter.filter.city && filter.filter.city.length > 0) {
+      labelColumn = "a.citynamear";
+      groupByColumn = "a.regionar, a.citynamear";
+      selectColumn = "a.regionar AS Region, a.citynamear as City";
+      notNullClause = "a.regionar IS NOT NULL AND a.citynamear IS NOT NULL";
+    } else {
+      labelColumn = "a.regionar";
+      groupByColumn = "a.regionar";
+      selectColumn = "a.regionar AS Region";
+      notNullClause = "a.regionar IS NOT NULL";
+    }
+
+    const sql = `
+     select 
+     ${labelColumn} as Label,
+     max(b.sdi) as total_no_of_realestates, 
+     sum([no_of_realestates]) as no_of_announced_realestates,
+              CASE
+          WHEN MAX(b.sdi) = 0 THEN 0
+          ELSE ROUND(sum([no_of_realestates]) * 100.0 / MAX(b.sdi), 2)
+        END AS Ratio,
+      ${selectColumn}
+FROM [dbo].[RER_Published] a
+left join  [dbo].[RER_SDI] b
+ON a.regionar LIKE '%' + LTRIM(RTRIM(REPLACE(b.region, CHAR(160), ' '))) + '%'
+ WHERE ${notNullClause}
+      ${regionClause}
+      ${cityClause}
+group by  ${groupByColumn}
+        ORDER BY
+        ${labelColumn}
+`;
+    const data = await AppDataSource.query(sql, parameters);
+    return { data: data as unknown as GetPublishedRealEstateRatioResponse };
   };
 
   const getRegisteredToPublishedParcelsRatio = async (filter: TFilter) => {
-    try {
-      const propertyType = filter.filter?.propertyType;
-      const parameters: DurationParam[] = [];
-      let paramIndex = 0;
+    return withCache(
+      fastify.redis,
+      `rer_published:registered_to_published_ratio:${JSON.stringify(filter)}`,
+      7200,
+      () => _getRegisteredToPublishedParcelsRatio(filter),
+    );
+  };
 
-      // PropertyType parameter (optional)
-      let propertyTypeClause = "";
-      if (propertyType) {
-        propertyTypeClause = `AND b.PropertyUse = @${paramIndex++}`;
-        parameters.push(propertyType);
-      }
+  const _getRegisteredToPublishedParcelsRatio = async (filter: TFilter) => {
+    const propertyType = filter.filter?.propertyType;
+    const parameters: DurationParam[] = [];
+    let paramIndex = 0;
 
-      // Region parameters (optional, multi-select)
-      let regionClause = "";
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        const regionParams = filter.filter.region
-          .map((region) => {
-            parameters.push(region);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        regionClause = `AND a.regionar IN (${regionParams})`;
-      }
+    let propertyTypeClause = "";
+    if (propertyType) {
+      propertyTypeClause = `AND b.PropertyUse = @${paramIndex++}`;
+      parameters.push(propertyType);
+    }
 
-      // City parameters (optional, multi-select)
-      let cityClause = "";
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        const cityParams = filter.filter.city
-          .map((city) => {
-            parameters.push(city);
-            return `@${paramIndex++}`;
-          })
-          .join(", ");
-        cityClause = `AND a.citynamear IN (${cityParams})`;
-      }
+    let regionClause = "";
+    if (filter.filter.region && filter.filter.region.length > 0) {
+      const regionParams = filter.filter.region
+        .map((region) => {
+          parameters.push(region);
+          return `@${paramIndex++}`;
+        })
+        .join(", ");
+      regionClause = `AND a.RegionAr IN (${regionParams})`;
+    }
 
-      // Determine grouping level: city > region (priority order)
-      let labelColumn: string;
-      let groupByColumn: string;
-      let selectColumn: string;
-      let notNullClause: string;
-      if (filter.filter.city && filter.filter.city.length > 0) {
-        labelColumn = "a.citynamear";
-        groupByColumn = "a.regionar, a.citynamear";
-        selectColumn = "a.regionar AS Region, a.citynamear as City";
-        notNullClause = "a.regionar IS NOT NULL AND a.citynamear IS NOT NULL";
-      } else {
-        labelColumn = "a.regionar";
-        groupByColumn = "a.regionar";
-        selectColumn = "a.regionar AS Region";
-        notNullClause = "a.regionar IS NOT NULL";
-      }
+    let cityClause = "";
+    if (filter.filter.city && filter.filter.city.length > 0) {
+      const cityParams = filter.filter.city
+        .map((city) => {
+          parameters.push(city);
+          return `@${paramIndex++}`;
+        })
+        .join(", ");
+      cityClause = `AND a.citynamear IN (${cityParams})`;
+    }
 
-      const sql = `
+    let labelColumn: string;
+    let groupByColumn: string;
+    let selectColumn: string;
+    let notNullClause: string;
+    let publishedAggregatedSelect = "";
+    let publishedAggregatedGroupBy = "";
+    if (filter.filter.city && filter.filter.city.length > 0) {
+      labelColumn = "a.CityNameAr";
+      groupByColumn = "a.CityNameAr";
+      selectColumn = "a.CityNameAr as City";
+      notNullClause = "a.RegionAr IS NOT NULL AND a.CityNameAr IS NOT NULL";
+
+      publishedAggregatedSelect =
+        "ISNULL(RegionAr, N'غير محدد') AS RegionAr, ISNULL(CityNameAr, N'غير محدد') AS CityNameAr";
+      publishedAggregatedGroupBy = "ISNULL(RegionAr, N'غير محدد'), ISNULL(CityNameAr, N'غير محدد')";
+    } else {
+      labelColumn = "a.RegionAr";
+      groupByColumn = "a.RegionAr";
+      selectColumn = "a.RegionAr AS Region";
+      notNullClause = "a.RegionAr IS NOT NULL";
+
+      publishedAggregatedSelect = "ISNULL(RegionAr, N'غير محدد') AS RegionAr";
+      publishedAggregatedGroupBy = "ISNULL(RegionAr, N'غير محدد')";
+    }
+
+    const sql = `
       WITH Titles_Aggregated AS (
     SELECT 
         CASE 
             WHEN RegionNameAr = N'المنطقة الشرقية' THEN N'الشرقية'
             WHEN RegionNameAr = N'منطقة الجوف' THEN N'الجوف'
-            WHEN RegionNameAr = N'منطقة الحدود الشمالية' THEN N'الحدود الشمالية '
-            WHEN RegionNameAr = N'منطقة الرياض' THEN N'الرياض '
-            WHEN RegionNameAr = N'منطقة القصيم' THEN N'القصيم '
+            WHEN RegionNameAr = N'منطقة الحدود الشمالية' THEN N'الحدود الشمالية'
+            WHEN RegionNameAr = N'منطقة الرياض' THEN N'الرياض'
+            WHEN RegionNameAr = N'منطقة القصيم' THEN N'القصيم'
             WHEN RegionNameAr = N'منطقة المدينة المنورة' THEN N'المدينة المنورة'
             WHEN RegionNameAr = N'منطقة تبوك' THEN N'تبوك'
             WHEN RegionNameAr = N'منطقة حائل' THEN N'حائل'
             WHEN RegionNameAr = N'منطقة مكة المكرمة' THEN N'مكة المكرمة'
-            ELSE RegionNameAr 
+            WHEN RegionNameAr IS NULL THEN N'غير محدد'
+            ELSE LTRIM(RTRIM(REPLACE(RegionNameAr, CHAR(160), ' '))) 
         END AS MappedRegion,
 
-        CASE 
-            WHEN CityNameAr = N'الزلفى' THEN N'الزلفي'
-            WHEN CityNameAr = N'المجمعه' THEN N'المجمعة'
-            WHEN CityNameAr = N'وادى الدواسر' THEN N'وادي الدواسر'
-            WHEN CityNameAr = N'ضرماء' THEN N'ضرما' 
-            ELSE CityNameAr 
-        END AS MappedCity,
+        ${
+          filter.filter.city && filter.filter.city.length > 0
+            ? `CASE 
+          WHEN CityNameAr = N'الزلفى' THEN N'الزلفي'
+          WHEN CityNameAr = N'المجمعه' THEN N'المجمعة'
+          WHEN CityNameAr = N'وادى الدواسر' THEN N'وادي الدواسر'
+          WHEN CityNameAr = N'ضرماء' THEN N'ضرما' 
+          WHEN CityNameAr IS NULL THEN N'غير محدد'
+          ELSE LTRIM(RTRIM(REPLACE(CityNameAr, CHAR(160), ' '))) 
+        END AS MappedCity,`
+            : ""
+        }
+
         COUNT(DISTINCT RealEstate_Number) AS RealEstateNumber_count
     
     FROM [dbo].[RER_Titles]
+    WHERE requestname='First Registration'
     GROUP BY 
         CASE 
             WHEN RegionNameAr = N'المنطقة الشرقية' THEN N'الشرقية'
             WHEN RegionNameAr = N'منطقة الجوف' THEN N'الجوف'
-            WHEN RegionNameAr = N'منطقة الحدود الشمالية' THEN N'الحدود الشمالية '
-            WHEN RegionNameAr = N'منطقة الرياض' THEN N'الرياض '
-            WHEN RegionNameAr = N'منطقة القصيم' THEN N'القصيم '
+            WHEN RegionNameAr = N'منطقة الحدود الشمالية' THEN N'الحدود الشمالية'
+            WHEN RegionNameAr = N'منطقة الرياض' THEN N'الرياض'
+            WHEN RegionNameAr = N'منطقة القصيم' THEN N'القصيم'
             WHEN RegionNameAr = N'منطقة المدينة المنورة' THEN N'المدينة المنورة'
             WHEN RegionNameAr = N'منطقة تبوك' THEN N'تبوك'
             WHEN RegionNameAr = N'منطقة حائل' THEN N'حائل'
             WHEN RegionNameAr = N'منطقة مكة المكرمة' THEN N'مكة المكرمة'
-            ELSE RegionNameAr 
-        END,
+            WHEN RegionNameAr IS NULL THEN N'غير محدد'
+            ELSE LTRIM(RTRIM(REPLACE(RegionNameAr, CHAR(160), ' ')))  
+        END
+        
+        ${
+          filter.filter.city && filter.filter.city.length > 0
+            ? `,
         CASE 
             WHEN CityNameAr = N'الزلفى' THEN N'الزلفي'
             WHEN CityNameAr = N'المجمعه' THEN N'المجمعة'
             WHEN CityNameAr = N'وادى الدواسر' THEN N'وادي الدواسر'
             WHEN CityNameAr = N'ضرماء' THEN N'ضرما' 
-            ELSE CityNameAr 
+            WHEN CityNameAr IS NULL THEN N'غير محدد'
+            ELSE LTRIM(RTRIM(REPLACE(CityNameAr, CHAR(160), ' ')))  
         END
+        `
+            : ""
+        }
+),
+
+Published_Aggregated AS (
+    SELECT 
+        SUM(no_of_realestates) AS no_of_announced_realestates
+        ,${publishedAggregatedSelect}
+    FROM [dbo].[RER_Published]
+    GROUP BY 
+        ${publishedAggregatedGroupBy}
 )
 
 SELECT 
     ${labelColumn} AS Label,
-    SUM(a.[no_of_realestates]) AS [no_of_announced_realestates],
-    ISNULL(SUM(b.RealEstateNumber_count), 0) AS total_no_of_realestates,
+    sum(ISNULL(a.no_of_announced_realestates, 0)) AS no_of_announced_realestates,
+    sum(ISNULL(b.RealEstateNumber_count, 0)) AS total_no_of_realestates,
     ${selectColumn}
-FROM [dbo].[RER_Published] a
-LEFT JOIN Titles_Aggregated b ON 
-    a.regionar = b.MappedRegion
-    AND a.CityNameAr = b.MappedCity
-        WHERE ${notNullClause}
-        ${regionClause}
-        ${cityClause}
-        ${propertyTypeClause}
+FROM Titles_Aggregated b
+LEFT JOIN Published_Aggregated a 
+    ON a.RegionAr LIKE '%' + b.MappedRegion + '%'
+    ${cityClause.length > 0 ? `AND a.CityNameAr LIKE '%' + b.MappedCity + '%'` : ""}
+WHERE ${notNullClause}
+${regionClause}
+${cityClause}
+${propertyTypeClause}
 GROUP BY 
     ${groupByColumn}
             ORDER BY
           ${labelColumn}
       `;
-      const query = AppDataSource.query(sql, parameters);
-      const data = await query;
-      return { data: data as unknown as GetRegisteredToPublishedParcelsRatioResponse };
-    } catch (error) {
-      console.error("⚠️  Error getting registered to published parcels ratio:", error);
-      return { data: [] as unknown as GetRegisteredToPublishedParcelsRatioResponse };
-    }
+    const data = await AppDataSource.query(sql, parameters);
+    return { data: data as unknown as GetRegisteredToPublishedParcelsRatioResponse };
   };
 
   const getCities = async (region?: string | undefined) => {
-    const cached = await fastify.redis.get(`rer_published_cities:list:${region}`);
-    if (cached) {
-      return { data: JSON.parse(cached) as GetCitiesResponse };
-    }
-    const citiesRepo = AppDataSource.createQueryBuilder()
-      .from("RER_Published", "RP")
-      .select("RP.citynamear", "value")
-      .addSelect("RP.citynamear", "label")
-      .distinct(true)
-      .where("RP.citynamear IS NOT NULL")
-      .andWhere("RP.regionar != ''");
+    return withCache(fastify.redis, `rer_published_cities:list:${region}`, 7200, async () => {
+      const citiesRepo = AppDataSource.createQueryBuilder()
+        .from("RER_Published", "RP")
+        .select("RP.citynamear", "value")
+        .addSelect("RP.citynamear", "label")
+        .distinct(true)
+        .where("RP.citynamear IS NOT NULL")
+        .andWhere("RP.regionar != ''");
 
-    if (region) {
-      citiesRepo.andWhere("RP.regionar = :region", { region });
-    }
-    let data = await citiesRepo.orderBy("RP.citynamear", "ASC").getRawMany();
-    try {
-      await fastify.redis.setex(`rer_published_cities:list:${region}`, 86400, JSON.stringify(data));
-    } catch (error) {
-      console.error("⚠️  Redis cache storage failed:", error);
-    }
-    return { data: data as unknown as GetCitiesResponse };
+      if (region) {
+        citiesRepo.andWhere("RP.regionar = :region", { region });
+      }
+      const data = await citiesRepo.orderBy("RP.citynamear", "ASC").getRawMany();
+      return { data: data as unknown as GetCitiesResponse };
+    });
   };
 
   const getRegions = async () => {
-    const cached = await fastify.redis.get("rer_published_regions:list");
-    if (cached) {
-      return { data: JSON.parse(cached) as GetRegionsResponse };
-    }
-    const query = AppDataSource.createQueryBuilder()
-      .from("RER_Published", "RP")
-      .select("RP.regionar", "value")
-      .addSelect("RP.regionar", "label")
-      .distinct(true)
-      .where("RP.regionar IS NOT NULL")
-      .andWhere("RP.regionar != ''")
-      .orderBy("RP.regionar", "ASC");
-    const data = await query.getRawMany();
-    try {
-      await fastify.redis.setex("rer_published_regions:list", 86400, JSON.stringify(data));
-    } catch (error) {
-      console.error("⚠️  Redis cache storage failed:", error);
-    }
-    return { data: data as unknown as GetRegionsResponse };
+    return withCache(fastify.redis, "rer_published_regions:list", 7200, async () => {
+      const data = await AppDataSource.createQueryBuilder()
+        .from("RER_Published", "RP")
+        .select("RP.regionar", "value")
+        .addSelect("RP.regionar", "label")
+        .distinct(true)
+        .where("RP.regionar IS NOT NULL")
+        .andWhere("RP.regionar != ''")
+        .orderBy("RP.regionar", "ASC")
+        .getRawMany();
+      return { data: data as unknown as GetRegionsResponse };
+    });
   };
 
   const getMapGeneralStatistics = async (filter: GetMapGeneralStatisticsFilterType) => {
-    try {
-      let queries: Array<Array<{ count: number | string }>> = [];
-      if (filter.filter.region && filter.filter.region.length > 0) {
-        queries = await Promise.all([
-          AppDataSource.query(
-            `SELECT count( distinct CityNameAr) AS count FROM "RER_Published" WHERE 1=1 ${generateWhereClause(filter)}`,
-          ), //no_of_announced
-          AppDataSource.query(
-            `SELECT COUNT(distinct CityNameAr) AS count FROM "RER_Published" WHERE GETDATE() between Register_start_date and Register_end_date ${generateWhereClause(filter)}`, //no_of_announced_active
-          ),
-          AppDataSource.query(
-            `SELECT COUNT(distinct CityNameAr) AS count FROM "RER_Published" WHERE GETDATE() >   Register_end_date`, //no_of_announced_expired
-          ),
-          AppDataSource.query(`SELECT count (distinct RealEstate_Number) as count FROM [dbo].[RER_Titles]  where requestname='First Registration' 
-          AND RegionNameAr IN (${filter.filter.region.map((region) => `N'${region}'`).join(", ")})
-        `), //no_of_registered_realestates
-        ]);
-      } else {
-        queries = await Promise.all([
-          AppDataSource.query(`SELECT COUNT(*) AS count FROM "RER_Published"`), //no_of_announced
-          AppDataSource.query(
-            `SELECT COUNT(*) AS count FROM "RER_Published" WHERE GETDATE() between Register_start_date and Register_end_date`, //no_of_announced_active
-          ),
-          AppDataSource.query(
-            `SELECT COUNT(*) AS count FROM "RER_Published" WHERE GETDATE() >   Register_end_date`, //no_of_announced_expired
-          ),
-          AppDataSource.query(
-            `SELECT count (distinct RealEstate_Number) as count FROM [dbo].[RER_Titles]  where requestname='First Registration' `,
-          ), //no_of_registered_realestates
-        ]);
-      }
+    return withCache(
+      fastify.redis,
+      `rer_published:map_general_stats:${JSON.stringify(filter)}`,
+      7200,
+      () => _getMapGeneralStatistics(filter),
+    );
+  };
 
-      const [
-        no_of_announced,
-        no_of_announced_active,
-        no_of_announced_expired,
-        no_of_registered_realestates,
-      ] = queries;
-      const data = {
-        no_of_announced_active: parseInt(no_of_announced_active?.[0]?.count?.toString() ?? "0", 10),
-        no_of_announced_expired: parseInt(
-          no_of_announced_expired?.[0]?.count?.toString() ?? "0",
-          10,
+  const _getMapGeneralStatistics = async (filter: GetMapGeneralStatisticsFilterType) => {
+    let queries: Array<Array<{ count: number | string }>> = [];
+    if (filter.filter.region && filter.filter.region.length > 0) {
+      queries = await Promise.all([
+        AppDataSource.query(
+          `SELECT count( distinct CityNameAr) AS count FROM "RER_Published" WHERE 1=1 ${generateWhereClause(filter)}`,
         ),
-        no_of_announced: parseInt(no_of_announced?.[0]?.count?.toString() ?? "0", 10),
-        no_of_registered_realestates: parseInt(
-          no_of_registered_realestates?.[0]?.count?.toString() ?? "0",
-          10,
+        AppDataSource.query(
+          `SELECT COUNT(distinct CityNameAr) AS count FROM "RER_Published" WHERE GETDATE() between Register_start_date and Register_end_date ${generateWhereClause(filter)}`,
         ),
-      };
-      return { data: data as unknown as GetMapGeneralStatisticsResponse };
-    } catch (error) {
-      console.error("⚠️  Error getting map general statistics:", error);
-      return {
-        data: {
-          no_of_announced_active: 0,
-          no_of_announced_expired: 0,
-          no_of_announced: 0,
-          no_of_registered_realestates: 0,
-        } as GetMapGeneralStatisticsResponse,
-      };
+        AppDataSource.query(
+          `SELECT COUNT(distinct CityNameAr) AS count FROM "RER_Published" WHERE GETDATE() >   Register_end_date`,
+        ),
+        AppDataSource.query(`SELECT count (distinct RealEstate_Number) as count FROM [dbo].[RER_Titles]  where requestname='First Registration' 
+          AND RegionNameAr IN (${filter.filter.region.map((region) => `N'${region}'`).join(", ")})
+        `),
+      ]);
+    } else {
+      queries = await Promise.all([
+        AppDataSource.query(`SELECT COUNT(*) AS count FROM "RER_Published"`),
+        AppDataSource.query(
+          `SELECT COUNT(*) AS count FROM "RER_Published" WHERE GETDATE() between Register_start_date and Register_end_date`,
+        ),
+        AppDataSource.query(
+          `SELECT COUNT(*) AS count FROM "RER_Published" WHERE GETDATE() >   Register_end_date`,
+        ),
+        AppDataSource.query(
+          `SELECT count (distinct RealEstate_Number) as count FROM [dbo].[RER_Titles]  where requestname='First Registration' `,
+        ),
+      ]);
     }
+
+    const [
+      no_of_announced,
+      no_of_announced_active,
+      no_of_announced_expired,
+      no_of_registered_realestates,
+    ] = queries;
+    const data = {
+      no_of_announced_active: parseInt(no_of_announced_active?.[0]?.count?.toString() ?? "0", 10),
+      no_of_announced_expired: parseInt(no_of_announced_expired?.[0]?.count?.toString() ?? "0", 10),
+      no_of_announced: parseInt(no_of_announced?.[0]?.count?.toString() ?? "0", 10),
+      no_of_registered_realestates: parseInt(
+        no_of_registered_realestates?.[0]?.count?.toString() ?? "0",
+        10,
+      ),
+    };
+    return { data: data as unknown as GetMapGeneralStatisticsResponse };
   };
 
   const generateWhereClause = (filter: GetMapGeneralStatisticsFilterType) => {
@@ -442,8 +446,13 @@ GROUP BY
   };
 
   const getMapStatisticsByRegions = async () => {
-    try {
-      const query = AppDataSource.query(`WITH Published_Aggregates AS (
+    return withCache(fastify.redis, "rer_published:map_stats_by_regions", 7200, () =>
+      _getMapStatisticsByRegions(),
+    );
+  };
+
+  const _getMapStatisticsByRegions = async () => {
+    const query = AppDataSource.query(`WITH Published_Aggregates AS (
     SELECT 
         RegionAr,
         region_shape,
@@ -513,12 +522,8 @@ LEFT JOIN Titles_Data t
     ON p.RegionAr = t.RegionNameAr
     ORDER BY no_of_announced_realestates DESC;
 `);
-      const data = await query;
-      return { data: data as unknown as GetMapStatisticsByRegionsResponse };
-    } catch (error) {
-      console.error("⚠️  Error getting map statistics by regions:", error);
-      return { data: [] as unknown as GetMapStatisticsByRegionsResponse };
-    }
+    const data = await query;
+    return { data: data as unknown as GetMapStatisticsByRegionsResponse };
   };
 
   // Decorate the fastify instance with the generalService

@@ -132,7 +132,7 @@ export default fp(async (fastify) => {
     }
     let data = await citiesRepo.orderBy("rrr.CityName", "ASC").getRawMany();
     try {
-      await fastify.redis.setex(`rer_register_cities:list:${region}`, 86400, JSON.stringify(data));
+      await fastify.redis.setex(`rer_register_cities:list:${region}`, 7200, JSON.stringify(data));
     } catch (error) {
       console.error("⚠️  Redis cache storage failed:", error);
     }

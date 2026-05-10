@@ -12,6 +12,8 @@ import {
   initializeXDatabase,
   initializeMapDatabase,
   initializeUsersDatabase,
+  initializeInquiryDatabase,
+  InquiryDataSource,
 } from "./config/database";
 import { auth } from "./lib/auth";
 import fastifyCors from "@fastify/cors";
@@ -115,6 +117,7 @@ const start = async () => {
     await initializeAppDatabase();
     await initializeXDatabase();
     await initializeUsersDatabase();
+    await initializeInquiryDatabase();
     if (process.env.RUN_MAP_DB === "true") {
       await initializeMapDatabase();
     }
@@ -186,6 +189,11 @@ const gracefulShutdown = async (signal: string) => {
     if (process.env.RUN_MAP_DB === "true" && MapDataSource.isInitialized) {
       await MapDataSource.destroy();
       console.log("✅ Map Database connection closed");
+    }
+
+    if (InquiryDataSource.isInitialized) {
+      await InquiryDataSource.destroy();
+      console.log("✅ Inquiry Database connection closed");
     }
 
     console.log("👋 Server shutdown complete");

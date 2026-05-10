@@ -40,6 +40,9 @@ export const AppDataSource = new DataSource({
     encrypt: true,
     trustServerCertificate: true, // <— allow self-signed certs
   },
+  extra: {
+    requestTimeout: 60000, // 60 seconds
+  },
 });
 
 export const MapDataSource = new DataSource({
@@ -52,6 +55,22 @@ export const MapDataSource = new DataSource({
   database: process.env.MAP_DB_NAME || "testdb",
   synchronize: false,
   logging: false,
+});
+
+export const InquiryDataSource = new DataSource({
+  name: "shared_config",
+  type: "mssql",
+  host: process.env.INQUIRY_DB_HOST || "localhost",
+  port: parseInt(process.env.INQUIRY_DB_PORT || "1433"),
+  username: process.env.INQUIRY_DB_USERNAME || "sa",
+  password: process.env.INQUIRY_DB_PASSWORD || "",
+  database: process.env.INQUIRY_DB_NAME || "testdb",
+  synchronize: false,
+  logging: false,
+  options: {
+    encrypt: true,
+    trustServerCertificate: true, // <— allow self-signed certs
+  },
 });
 
 // export const RERDataSource = new DataSource({
@@ -140,6 +159,16 @@ export const initializeUsersDatabase = async (): Promise<void> => {
     console.log("Users Database connection has been initialized successfully.");
   } catch (error) {
     console.error("Error during Users Data Source initialization:", error);
+    throw error;
+  }
+};
+
+export const initializeInquiryDatabase = async (): Promise<void> => {
+  try {
+    await InquiryDataSource.initialize();
+    console.log("Inquiry Database connection has been initialized successfully.");
+  } catch (error) {
+    console.error("Error during Inquiry Data Source initialization:", error);
     throw error;
   }
 };

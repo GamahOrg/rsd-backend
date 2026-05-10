@@ -12,6 +12,16 @@ import {
   getNationalitiesSchemaType,
 } from "./schemas/getNationalities.schema";
 
+import {
+  getMostOwnedNationalitiesSchema,
+  getMostOwnedNationalitiesSchemaType,
+} from "../general/schemas/GetMostOwnedNationalities.schema";
+import { setPaginationHeaders } from "../../../helper/setPaginationHeaders";
+import {
+  getMostOwnedRegionsSchema,
+  getMostOwnedRegionsSchemaType,
+} from "./schemas/GetMostOwnedRegions.schema";
+
 const foreignOwnershipGeneral: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   // api to get all statistics
   fastify.route<statisticsSchemaType>({
@@ -77,6 +87,34 @@ const foreignOwnershipGeneral: FastifyPluginAsyncTypebox = async (fastify): Prom
     handler: async () => {
       const { data } = await fastify.foreignOwnershipGeneralService.getNationalities();
       return data;
+    },
+  });
+
+  // api to get most owned nationalities
+  fastify.route<getMostOwnedNationalitiesSchemaType>({
+    method: "GET",
+    url: "/most-owned-nationalities",
+    schema: getMostOwnedNationalitiesSchema,
+    handler: async (request, response) => {
+      const { skip, take } = request.pagination!;
+      const { data, totalRecords } =
+        await fastify.foreignOwnershipGeneralService.getMostOwnedNationalities({ skip, take });
+      setPaginationHeaders(response, totalRecords, take);
+      return { data, totalRecords };
+    },
+  });
+
+  // api to get most owned regions
+  fastify.route<getMostOwnedRegionsSchemaType>({
+    method: "GET",
+    url: "/most-owned-regions",
+    schema: getMostOwnedRegionsSchema,
+    handler: async (request, response) => {
+      const { skip, take } = request.pagination!;
+      const { data, totalRecords } =
+        await fastify.foreignOwnershipGeneralService.getMostOwnedRegions({ skip, take });
+      setPaginationHeaders(response, totalRecords, take);
+      return { data, totalRecords };
     },
   });
 };

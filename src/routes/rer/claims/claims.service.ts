@@ -4,6 +4,7 @@ import { TFilter } from "../../../models/types/rer/filter.type";
 import { AppDataSource } from "../../../config/database";
 import { TResponse as GetClaimsByStatusGroupByDateCountResponse } from "./schemas/GetClaimsGroupByDateCount.schema";
 import { generateDurationCond, DurationParam } from "../../../helper/rer/filterQueryGenerator";
+import { withCache } from "../../../helper/cache";
 
 export default fp(async (fastify) => {
   const queryHelper = {
@@ -36,82 +37,78 @@ export default fp(async (fastify) => {
       return { data: [] as unknown as GetClaimsByStatusCountResponse };
     }
 
-    const parameters: DurationParam[] = [];
-    const durationCond = generateDurationCond(duration, 0, "WeekOfYearNumber");
-    parameters.push(...durationCond.params);
+    return withCache(
+      fastify.redis,
+      `rer_claims:by_status:${JSON.stringify(filter)}`,
+      7200,
+      async () => {
+        const parameters: DurationParam[] = [];
+        const durationCond = generateDurationCond(duration, 0, "WeekOfYearNumber");
+        parameters.push(...durationCond.params);
 
-    const sql = `
-      SELECT 
-        SUM(RC.approved) AS approved_claims,
-        SUM(RC.rejected) AS rejected_claims
-      FROM "RER_Claims" AS RC
-      WHERE ${durationCond.clause}
-    `;
+        const sql = `
+          SELECT 
+            SUM(RC.approved) AS approved_claims,
+            SUM(RC.rejected) AS rejected_claims
+          FROM "RER_Claims" AS RC
+          WHERE ${durationCond.clause}
+        `;
 
-    const result = await AppDataSource.query(sql, parameters);
-    const data = result[0];
-    return data.approved_claims > 0 || data.rejected_claims > 0
-      ? {
-          data: [
-            {
-              label: "مقبول",
-              count: data.approved_claims || 0,
-            },
-            {
-              label: "مرفوض",
-              count: data.rejected_claims || 0,
-            },
-          ] as unknown as GetClaimsByStatusCountResponse,
-        }
-      : {
-          data: [] as unknown as GetClaimsByStatusCountResponse,
-        };
+        const result = await AppDataSource.query(sql, parameters);
+        const data = result[0];
+        return data.approved_claims > 0 || data.rejected_claims > 0
+          ? {
+              data: [
+                { label: "مقبول", count: data.approved_claims || 0 },
+                { label: "مرفوض", count: data.rejected_claims || 0 },
+              ] as unknown as GetClaimsByStatusCountResponse,
+            }
+          : { data: [] as unknown as GetClaimsByStatusCountResponse };
+      },
+    );
   };
 
   const getClaimsByStatusGroupByDateCount = async (filter: TFilter) => {
-    try {
-      const helper = queryHelper[filter.filter.duration.type as keyof typeof queryHelper];
-      const durationSelect = helper?.select || [];
-      const durationGroupBy = helper?.groupBy || [];
-      const durationOrderBy = helper?.orderBy || [];
+    return withCache(
+      fastify.redis,
+      `rer_claims:by_status_by_date:${JSON.stringify(filter)}`,
+      7200,
+      async () => {
+        const helper = queryHelper[filter.filter.duration.type as keyof typeof queryHelper];
+        const durationSelect = helper?.select || [];
+        const durationGroupBy = helper?.groupBy || [];
+        const durationOrderBy = helper?.orderBy || [];
 
-      // Build parameters array and positional placeholders
-      const parameters: DurationParam[] = [];
+        const parameters: DurationParam[] = [];
+        const durationCond = generateDurationCond(filter.filter.duration, 0, "WeekOfYearNumber");
+        parameters.push(...durationCond.params);
 
-      // Generate duration WHERE clause using generateDurationCond
-      const durationCond = generateDurationCond(filter.filter.duration, 0, "WeekOfYearNumber");
-      parameters.push(...durationCond.params);
-
-      // Build the query: aggregate once, then unpivot with CROSS APPLY (single table scan)
-      const sql = `
-        SELECT 
-          agg.*,
-          x.Label,
-          x.Count
-        FROM (
+        const sql = `
           SELECT 
-            ${durationSelect.join(", ")},
-            SUM(RC.approved) AS approved_count,
-            SUM(RC.rejected) AS rejected_count
-          FROM RER_Claims AS RC
-          WHERE ${durationCond.clause}
-          GROUP BY ${durationGroupBy.join(", ")}
-        ) agg
-        CROSS APPLY (
-          VALUES 
-            (N'مقبول', agg.approved_count),
-            (N'مرفوض', agg.rejected_count)
-        ) x(Label, Count)
-        ORDER BY ${durationOrderBy.join(", ")}, Label
-      `;
+            agg.*,
+            x.Label,
+            x.Count
+          FROM (
+            SELECT 
+              ${durationSelect.join(", ")},
+              SUM(RC.approved) AS approved_count,
+              SUM(RC.rejected) AS rejected_count
+            FROM RER_Claims AS RC
+            WHERE ${durationCond.clause}
+            GROUP BY ${durationGroupBy.join(", ")}
+          ) agg
+          CROSS APPLY (
+            VALUES 
+              (N'مقبول', agg.approved_count),
+              (N'مرفوض', agg.rejected_count)
+          ) x(Label, Count)
+          ORDER BY ${durationOrderBy.join(", ")}, Label
+        `;
 
-      const query = AppDataSource.query(sql, parameters);
-      const data = await query;
-      return { data: data as unknown as GetClaimsByStatusGroupByDateCountResponse };
-    } catch (error) {
-      console.error("⚠️  Error getting claims by status group by date count:", error);
-      return { data: [] as unknown as GetClaimsByStatusGroupByDateCountResponse };
-    }
+        const data = await AppDataSource.query(sql, parameters);
+        return { data: data as unknown as GetClaimsByStatusGroupByDateCountResponse };
+      },
+    );
   };
 
   // Decorate the fastify instance with the generalService

@@ -11,6 +11,7 @@ import {
   TFilter as GetOwnersStatisticsFilterType,
 } from "./schemas/GetOwnersStatistics.schema";
 import { AppDataSource } from "../../../config/database";
+import { withCache } from "../../../helper/cache";
 
 export default fp(async (fastify) => {
   const queryHelper = {
@@ -40,15 +41,24 @@ export default fp(async (fastify) => {
     filter: GetOwnersFilterType,
     pagination?: { skip: number; take: number },
   ) => {
-    try {
-      // Build where clause and parameters
-      const { whereClause, parameters } = generateWhereClause(filter);
-      // Build order by clause
-      const orderByClause = generateOrderByClause(filter);
+    return withCache(
+      fastify.redis,
+      `fo_owners:list:${JSON.stringify(filter)}:${JSON.stringify(pagination)}`,
+      7200,
+      () => _getOwners(filter, pagination),
+    );
+  };
 
-      const offsetParam = Math.max(0, pagination?.skip ?? 0);
-      const takeParam = Math.max(1, pagination?.take ?? filter.filter.dataSize ?? 100);
-      const dataSql = `
+  const _getOwners = async (
+    filter: GetOwnersFilterType,
+    pagination?: { skip: number; take: number },
+  ) => {
+    const { whereClause, parameters } = generateWhereClause(filter);
+    const orderByClause = generateOrderByClause(filter);
+
+    const offsetParam = Math.max(0, pagination?.skip ?? 0);
+    const takeParam = Math.max(1, pagination?.take ?? filter.filter.dataSize ?? 100);
+    const dataSql = `
        SELECT
         rt.RRR_GovIdentityValue AS OwnerIDNumber,
         rt.RRR_IdentityType     AS IdentityType,
@@ -74,8 +84,8 @@ export default fp(async (fastify) => {
     ${orderByClause}
     OFFSET ${offsetParam} ROWS FETCH NEXT ${takeParam} ROWS ONLY;`;
 
-      // Get total record count using a proper COUNT(*) query
-      const countSql = `
+    // Get total record count using a proper COUNT(*) query
+    const countSql = `
         SELECT COUNT(DISTINCT rt.RRR_GovIdentityValue) as totalRecords
         FROM RER_Titles rt
         WHERE rt.TitleStatus = 'Active'
@@ -88,45 +98,45 @@ export default fp(async (fastify) => {
           AND NULLIF(LTRIM(RTRIM(rt.RRR_GovIdentityValue)), N'') IS NOT NULL
           ${whereClause}
       `;
-      const totalRecordsResult = await AppDataSource.query(countSql, parameters);
-      const totalRecords = Number(totalRecordsResult?.[0]?.totalRecords ?? 0);
-      let data = await AppDataSource.query(dataSql, [...parameters, offsetParam, takeParam]);
-      data = data.map((item: any) => {
-        return {
-          OwnerIDNumber: item.OwnerIDNumber,
-          OwnerName: item.OwnerName,
-          Nationality: item.Nationality,
-          IdentityType: item.IdentityType,
-          totalArea: Number(item.totalOwnedArea),
-          totalDeeds: Number(item.totalDeeds),
-          realestates: {
-            moj: {
-              deeds: 0,
-              area: 0,
-            },
-            rer: {
-              deeds: item.totalDeeds,
-              area: item.totalOwnedArea,
-            },
-          },
-        };
-      });
+    const totalRecordsResult = await AppDataSource.query(countSql, parameters);
+    const totalRecords = Number(totalRecordsResult?.[0]?.totalRecords ?? 0);
+    let data = await AppDataSource.query(dataSql, [...parameters, offsetParam, takeParam]);
+    data = data.map((item: any) => {
       return {
-        data: data.map((item: any) => item) as unknown as GetOwnersResponse,
-        totalRecords,
+        OwnerIDNumber: item.OwnerIDNumber,
+        OwnerName: item.OwnerName,
+        Nationality: item.Nationality,
+        IdentityType: item.IdentityType,
+        totalArea: Number(item.totalOwnedArea),
+        totalDeeds: Number(item.totalDeeds),
+        realestates: {
+          moj: {
+            deeds: 0,
+            area: 0,
+          },
+          rer: {
+            deeds: item.totalDeeds,
+            area: item.totalOwnedArea,
+          },
+        },
       };
-    } catch (error) {
-      console.error("⚠️  Error getting owners data:", error);
-      return { data: [] as unknown as GetOwnersResponse, totalRecords: 0 };
-    }
+    });
+    return {
+      data: data.map((item: any) => item) as unknown as GetOwnersResponse,
+      totalRecords,
+    };
   };
 
   const getOwnersStatistics = async (filter: GetOwnersStatisticsFilterType) => {
-    try {
-      // Build parameters array and positional placeholders
-      const { whereClause, parameters } = generateWhereClause(filter);
+    return withCache(fastify.redis, `fo_owners:statistics:${JSON.stringify(filter)}`, 7200, () =>
+      _getOwnersStatistics(filter),
+    );
+  };
 
-      const sql = `
+  const _getOwnersStatistics = async (filter: GetOwnersStatisticsFilterType) => {
+    const { whereClause, parameters } = generateWhereClause(filter);
+
+    const sql = `
 SELECT 
 count(distinct rt.RRR_GovIdentityValue) as totalOwners,
    count(distinct rt.RealEstate_Number)  AS totalRealEstates,
@@ -142,17 +152,18 @@ count(distinct rt.RRR_GovIdentityValue) as totalOwners,
       AND NULLIF(LTRIM(RTRIM(rt.RRR_GovIdentityValue)), N'') IS NOT NULL
       ${whereClause}
       `;
-      const data = await AppDataSource.query(sql, parameters);
-      return { data: data[0] as unknown as GetOwnersStatisticsResponse };
-    } catch (error) {
-      console.error("⚠️  Error getting owners statistics data:", error);
-      return { data: [] as unknown as GetOwnersStatisticsResponse };
-    }
+    const data = await AppDataSource.query(sql, parameters);
+    return { data: data[0] as unknown as GetOwnersStatisticsResponse };
   };
 
   const getOwnerInfo = async (ownerIDNumber: string) => {
-    try {
-      const query = `SELECT 
+    return withCache(fastify.redis, `fo_owners:info:${ownerIDNumber}`, 7200, () =>
+      _getOwnerInfo(ownerIDNumber),
+    );
+  };
+
+  const _getOwnerInfo = async (ownerIDNumber: string) => {
+    const query = `SELECT 
       rt.RRR_GovIdentityValue AS OwnerIDNumber,
       rt.RRR_IdentityType     AS IdentityType,
       rt.RRR_NameAr           AS OwnerName,
@@ -270,20 +281,27 @@ count(distinct rt.RRR_GovIdentityValue) as totalOwners,
         rt.RRR_IdentityType,
         rt.RRR_NameAr,
         rt.RRR_Nationality`;
-      const data = await AppDataSource.query(query, [ownerIDNumber]);
-      return { data: data[0] as unknown as GetOwnerInfoResponse };
-    } catch (error) {
-      console.error("⚠️  Error getting owner info data:", error);
-      return { data: null as unknown as GetOwnerInfoResponse };
-    }
+    const data = await AppDataSource.query(query, [ownerIDNumber]);
+    return { data: data[0] as unknown as GetOwnerInfoResponse };
   };
 
   const getOwnerRealestates = async (
     ownerIDNumber: string,
     beforeExecutionDate: boolean | undefined,
   ) => {
-    try {
-      const query = `SELECT
+    return withCache(
+      fastify.redis,
+      `fo_owners:realestates:${ownerIDNumber}:${beforeExecutionDate}`,
+      7200,
+      () => _getOwnerRealestates(ownerIDNumber, beforeExecutionDate),
+    );
+  };
+
+  const _getOwnerRealestates = async (
+    ownerIDNumber: string,
+    beforeExecutionDate: boolean | undefined,
+  ) => {
+    const query = `SELECT
         rt.RealEstate_Number as id,
         rt.DeedDate as DEED_DATE_G,
         COALESCE(rt.UnitAreaSize, rt.AreaSize) as OWNED_AREA,
@@ -308,44 +326,35 @@ count(distinct rt.RRR_GovIdentityValue) as totalOwners,
         UtmZone
       FROM RER_Titles rt
       WHERE RRR_GovIdentityValue = @0 AND TitleStatus = 'Active' ${beforeExecutionDate ? (beforeExecutionDate === true ? `AND rt.DeedDate < '2026-01-22'` : " AND rt.DeedDate >= '2026-01-22' ") : ""}`;
-      const data = await AppDataSource.query(query, [ownerIDNumber]);
-      return { data: data as unknown as GetOwnerRealestatesResponse };
-    } catch (error) {
-      console.error("⚠️  Error getting owner realestates data:", error);
-      return { data: [] as unknown as GetOwnerRealestatesResponse };
-    }
+    const data = await AppDataSource.query(query, [ownerIDNumber]);
+    return { data: data as unknown as GetOwnerRealestatesResponse };
   };
 
   const getOwnerRealestatesCoordinates = async (ownerIDNumber: string) => {
-    try {
-      const query = `SELECT
+    return withCache(fastify.redis, `fo_owners:coordinates:${ownerIDNumber}`, 7200, () =>
+      _getOwnerRealestatesCoordinates(ownerIDNumber),
+    );
+  };
+
+  const _getOwnerRealestatesCoordinates = async (ownerIDNumber: string) => {
+    const query = `SELECT
         Easting,
         Northing,
         UtmZone
       FROM RER_Titles rt
       WHERE RRR_GovIdentityValue = @0 AND TitleStatus = 'Active'`;
-      const data = await AppDataSource.query(query, [ownerIDNumber]);
-      const response: GetOwnerRealestatesCoordinatesResponse = {
-        Easting: [],
-        Northing: [],
-        UtmZone: [],
-      };
-      for (const row of data) {
-        if (row.Easting != null) response.Easting.push(String(row.Easting));
-        if (row.Northing != null) response.Northing.push(String(row.Northing));
-        if (row.UtmZone != null) response.UtmZone.push(String(row.UtmZone));
-      }
-      return { data: response };
-    } catch (error) {
-      console.error("⚠️  Error getting owner realestates data:", error);
-      return {
-        data: {
-          Easting: [],
-          Northing: [],
-          UtmZone: [],
-        },
-      };
+    const data = await AppDataSource.query(query, [ownerIDNumber]);
+    const response: GetOwnerRealestatesCoordinatesResponse = {
+      Easting: [],
+      Northing: [],
+      UtmZone: [],
+    };
+    for (const row of data) {
+      if (row.Easting != null) response.Easting.push(String(row.Easting));
+      if (row.Northing != null) response.Northing.push(String(row.Northing));
+      if (row.UtmZone != null) response.UtmZone.push(String(row.UtmZone));
     }
+    return { data: response };
   };
 
   const generateWhereClause = (filter: GetOwnersFilterType | GetOwnersStatisticsFilterType) => {
