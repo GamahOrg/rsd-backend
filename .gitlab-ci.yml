@@ -34,7 +34,6 @@ prettier-fix:
     - corepack enable
     - corepack prepare pnpm@latest-10 --activate
     - pnpm config set store-dir .pnpm-store
-    - echo "nameserver 10.21.11.5" > /etc/resolv.conf
   script: |
     pnpm install
     pnpm prettier --write src
@@ -82,7 +81,7 @@ test:
     - corepack enable
     - corepack prepare pnpm@latest-10 --activate
     - pnpm config set store-dir .pnpm-store
-    - echo "nameserver 10.21.11.5" > /etc/resolv.conf
+    # - echo "nameserver 10.21.11.5" > /etc/resolv.conf
   script:
     - pnpm install --frozen-lockfile
     - pnpm test:ci

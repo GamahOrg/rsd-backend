@@ -22,11 +22,6 @@ import {
   getTransactionsCountSchemaType,
   TFilterWithNationality,
 } from "./schemas/GetTransactionsCount.schema";
-import {
-  getMostOwnedNationalitiesSchema,
-  getMostOwnedNationalitiesSchemaType,
-} from "./schemas/GetMostOwnedNationalities.schema";
-
 const foreignOwnershipTitles: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   // api to get request chart
   // fastify.route<getTitlesByRegionSchemaType>({
@@ -113,17 +108,6 @@ const foreignOwnershipTitles: FastifyPluginAsyncTypebox = async (fastify): Promi
         await fastify.foreignOwnershipTitlesService.getTransactionsCountByIdentityType({
           filter,
         });
-      return data;
-    },
-  });
-
-  // api to get most owned nationalities
-  fastify.route<getMostOwnedNationalitiesSchemaType>({
-    method: "GET",
-    url: "/most-owned-nationalities",
-    schema: getMostOwnedNationalitiesSchema,
-    handler: async () => {
-      const { data } = await fastify.foreignOwnershipTitlesService.getMostOwnedNationalities();
       return data;
     },
   });
