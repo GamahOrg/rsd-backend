@@ -351,7 +351,8 @@ FROM non_saudies_individuals_ownership_regions_unique_owners
         const value = Number(row.total_owners ?? 0);
         return {
           rank: skip + index + 1,
-          region: row.region_ar,
+          region:
+            row.region_ar == "منطقة الحدود الشماليه" ? "منطقة الحدود الشمالية" : row.region_ar,
           total_owners: value,
           total_properties: row.total_owned_properties,
           owners_percentage: row.ownership_pct,

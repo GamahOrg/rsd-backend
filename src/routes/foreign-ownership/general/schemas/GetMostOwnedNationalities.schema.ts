@@ -1,5 +1,5 @@
 import { Type, Static } from "@sinclair/typebox";
-import { IError, TError, IPagination } from "../../../../helper/common";
+import { IError, TError } from "../../../../helper/common";
 import { RouteGenericInterface } from "fastify";
 
 const MostOwnedNationalityData = Type.Object({
@@ -18,6 +18,12 @@ const IResponse = Type.Object({
   totalRecords: Type.Number(),
 });
 
+export const IPagination = Type.Object({
+  page: Type.Number({ default: 1 }),
+  pageSize: Type.Number({ default: 100 }),
+});
+export type IPagination = Static<typeof IPagination>;
+
 export type TResponse = Static<typeof IResponse>;
 
 export type getMostOwnedNationalitiesSchemaType = RouteGenericInterface & {
@@ -30,7 +36,8 @@ export const getMostOwnedNationalitiesSchema = {
   tags: ["foreign-ownership"],
   deprecated: false,
   summary: "get most owned nationalities",
-  description: "get most owned nationalities with pagination (page, pageSize)",
+  description:
+    "get most owned nationalities with pagination (page, pageSize), if not provided, it will return the last 100 records",
   querystring: IPagination,
   response: {
     200: IResponse,
