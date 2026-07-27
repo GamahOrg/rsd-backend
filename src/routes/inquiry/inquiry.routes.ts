@@ -71,6 +71,13 @@ const inquiry: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
       }
 
       const userId = await getUserId(request);
+      if (!userId) {
+        return reply.status(401).send({
+          statusCode: 401,
+          error: "Unauthorized",
+          message: "User not authenticated",
+        });
+      }
       const ipAddress =
         (request.headers["x-forwarded-for"] as string) ||
         (request.headers["x-real-ip"] as string) ||
@@ -106,6 +113,13 @@ const inquiry: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
       }
 
       const userId = await getUserId(request);
+      if (!userId) {
+        return reply.status(401).send({
+          statusCode: 401,
+          error: "Unauthorized",
+          message: "User not authenticated",
+        });
+      }
       const ipAddress =
         (request.headers["x-forwarded-for"] as string) ||
         (request.headers["x-real-ip"] as string) ||
@@ -142,6 +156,13 @@ const inquiry: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
       }
 
       const userId = await getUserId(request);
+      if (!userId) {
+        return reply.status(401).send({
+          statusCode: 401,
+          error: "Unauthorized",
+          message: "User not authenticated",
+        });
+      }
       const ipAddress =
         (request.headers["x-forwarded-for"] as string) ||
         (request.headers["x-real-ip"] as string) ||
